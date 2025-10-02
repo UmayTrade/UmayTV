@@ -9,9 +9,8 @@ android {
 
     defaultConfig {
         minSdk = 21
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        // Library modüllerde versionCode / versionName kullanılmaz!
+        // Eğer aar üretirken version gerekiyorsa gradle.properties ile ayarlanır.
     }
 
     buildTypes {
@@ -23,10 +22,14 @@ android {
             )
         }
     }
+
+    // Yeni Gradle DSL için uyarıyı düzeltelim:
+    lint.targetSdk = 34
+    testOptions.targetSdk = 34
 }
 
 dependencies {
-    // Cloudstream3 API (eklenmezse Plugin sınıfı bulunmaz)
+    // Cloudstream3 API
     implementation("com.lagradost:cloudstream3:0.1.0")
 
     // Kotlin stdlib
