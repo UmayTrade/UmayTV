@@ -1,37 +1,39 @@
 plugins {
-    id("com.android.library")
+    id("com.android.application")
     kotlin("android")
 }
 
 android {
-    namespace = "com.keyiflerolsun.belgeselx"
+    namespace = "com.example.belgeselx"
     compileSdk = 34
 
     defaultConfig {
+        applicationId = "com.example.belgeselx"
         minSdk = 21
-        // Library modüllerde versionCode / versionName kullanılmaz!
-        // Eğer aar üretirken version gerekiyorsa gradle.properties ile ayarlanır.
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
         }
     }
+}
 
-    // Yeni Gradle DSL için uyarıyı düzeltelim:
-    lint.targetSdk = 34
-    testOptions.targetSdk = 34
+repositories {
+    google()
+    mavenCentral()
+    // Cloudstream için gerekli
+    maven("https://jitpack.io")
 }
 
 dependencies {
-    // Cloudstream3 API
-    implementation("com.lagradost:cloudstream3:0.1.0")
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
 
-    // Kotlin stdlib
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.25")
+    // Cloudstream 3 core kütüphanesi (JitPack üzerinden)
+    implementation("com.github.LagradOst:CloudStream-3:master-SNAPSHOT")
 }
