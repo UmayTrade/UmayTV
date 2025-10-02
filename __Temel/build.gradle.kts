@@ -1,18 +1,35 @@
-version = 0
+plugins {
+    id("com.android.library")
+    kotlin("android") version "1.9.24"
+}
 
-cloudstream {
-    authors     = listOf("UmayTrade")
-    language    = "tr"
-    description = "Setfilmizle sitemizde, donma yaşamadan Türkçe dublaj ve altyazılı filmleri ile dizileri muhteşem 1080p full HD kalitesinde izleyebilirsiniz."
+android {
+    namespace = "com.umaytrade.temel"
+    compileSdk = 34
 
-    /**
-     * Status int as the following:
-     * 0: Down
-     * 1: Ok
-     * 2: Slow
-     * 3: Beta only
-    **/
-    status  = 1 // will be 3 if unspecified
-    tvTypes = listOf("Movie")
-    iconUrl = "https://www.google.com/s2/favicons?domain=www.setfilmizle.de&sz=%size%"
+    defaultConfig {
+        minSdk = 21
+        aarMetadata {
+            minCompileSdk = 21
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+repositories {
+    google()
+    mavenCentral()
+    maven("https://jitpack.io") // CloudStream API burada
+}
+
+dependencies {
+    implementation("com.github.LagradOst:CloudStream-3:master-SNAPSHOT")
 }
