@@ -1,18 +1,34 @@
-version = 6
+plugins {
+    id("com.android.library")
+    kotlin("android")
+}
 
-cloudstream {
-    authors     = listOf("keyiflerolsun", "JustRelaxable", "nikyokki")
-    language    = "tr"
-    description = "En yeni belgeseller, türkçe altyazılı yada dublaj olarak 1080p kalitesinde HD belgesel izle."
+android {
+    namespace = "com.keyiflerolsun.belgeselx"
+    compileSdk = 34
 
-    /**
-     * Status int as the following:
-     * 0: Down
-     * 1: Ok
-     * 2: Slow
-     * 3: Beta only
-    **/
-    status  = 1 // will be 3 if unspecified
-    tvTypes = listOf("Documentary")
-    iconUrl = "https://www.google.com/s2/favicons?domain=belgeselx.com&sz=%size%"
+    defaultConfig {
+        minSdk = 21
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+}
+
+dependencies {
+    // Cloudstream3 API (eklenmezse Plugin sınıfı bulunmaz)
+    implementation("com.lagradost:cloudstream3:0.1.0")
+
+    // Kotlin stdlib
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.25")
 }
