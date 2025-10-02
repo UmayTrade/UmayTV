@@ -1,4 +1,4 @@
-package com.nikyokki
+package com.umaytrade
 
 import android.util.Log
 import org.jsoup.nodes.Element
