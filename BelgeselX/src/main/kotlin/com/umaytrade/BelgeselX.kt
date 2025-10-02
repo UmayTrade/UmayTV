@@ -170,8 +170,7 @@ class BelgeselX : MainAPI() {
         Regex("""<iframe\s+[^>]*src=\\"([^\\"']+)\\"""").findAll(source.text).forEach { alternatifUrlMatchResult ->
             val alternatifUrl  = alternatifUrlMatchResult.groupValues[1]
             Log.d("BLX", "alternatifUrl » $alternatifUrl")
-            val alternatifResp = app.get(alternatifUrl, referer=data)
-            // Burada alternatif URL'leri işlemek için gerekli kod eklenmeli
+            loadExtractor(alternatifUrl, data, subtitleCallback, callback)
         }
 
         return true
