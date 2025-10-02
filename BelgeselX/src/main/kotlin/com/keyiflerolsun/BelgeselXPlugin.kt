@@ -1,13 +1,15 @@
 package com.keyiflerolsun
 
-import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.plugins.Plugin
-import android.content.Context
+import com.lagradost.cloudstream3.Plugin
+import com.lagradost.cloudstream3.registerMainAPI
+import com.lagradost.cloudstream3.registerExtractorAPI
 
-@CloudstreamPlugin
-class BelgeselXPlugin: Plugin() {
-    override fun load(context: Context) {
-        registerMainAPI(BelgeselX())
-        registerExtractorAPI(Odnoklassniki())
+class BelgeselXPlugin : Plugin() {
+    override fun load() {
+        // Burada API’ni kaydet
+        registerMainAPI(BelgeselXProvider())
+
+        // Eğer özel extractor kullanıyorsan
+        // registerExtractorAPI(MyExtractor())
     }
 }
