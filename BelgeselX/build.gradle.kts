@@ -1,26 +1,30 @@
 plugins {
-    id("java-library")
+    id("com.android.library")
+    kotlin("android")
 }
 
-version = 6
+android {
+    namespace = "com.umaytrade.belgeselx"
+    compileSdk = 34
 
-cloudstream {
-    authors = listOf("keyiflerolsun", "JustRelaxable", "nikyokki")
-    language = "tr"
-    description = "En yeni belgeseller, türkçe altyazılı yada dublaj olarak 1080p kalitesinde HD belgesel izle."
+    defaultConfig {
+        minSdk = 21
+    }
 
-    /**
-    * Status int as the following:
-    * 0: Down
-    * 1: Ok
-    * 2: Slow
-    * 3: Beta only
-    **/
-    status = 1
-    tvTypes = listOf("Documentary")
-    iconUrl = "https://www.google.com/s2/favicons?domain=belgeselx.com&sz=%size%"
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 }
 
 dependencies {
-    implementation(project(":common"))
+    // Common modülü yoksa bu satırı kaldır
+    // implementation(project(":common"))
+
+    // Cloudstream 3 ana API
+    implementation("com.lagradost:cloudstream3:3.0.0")
 }
