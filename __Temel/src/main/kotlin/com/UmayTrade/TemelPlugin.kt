@@ -1,12 +1,29 @@
 package com.umaytrade
 
-import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.plugins.Plugin
 import android.content.Context
+import com.lagradost.cloudstream3.*  // <-- Buradan Plugin ve registerMainAPI geliyor
 
-@CloudstreamPlugin
-class TemelPlugin: Plugin() {
+class TemelPlugin : Plugin() {
     override fun load(context: Context) {
-        registerMainAPI(Temel())
+        registerMainAPI(TemelProvider())
+    }
+}
+
+class TemelProvider : MainAPI() {
+    override var mainUrl = "https://ornek.com"
+    override var name = "Temel"
+    override val supportedTypes = setOf(TvType.Movie)
+
+    override suspend fun search(query: String): List<SearchResponse> {
+        return listOf(
+            MovieSearchResponse(
+                name = "Örnek Film",
+                url = "$mainUrl/film",
+                apiName = this.name,
+                type = TvType.Movie,
+                posterUrl = null,
+                year = 2024
+            )
+        )
     }
 }
