@@ -1,18 +1,14 @@
-version = 3
+// FilmIzleIlk/build.gradle.kts dosyanıza eklenmesi gereken kısım:
 
-cloudstream {
-    authors     = listOf("nikyokki")
-    language    = "tr"
-    description = "Filmizleilk.com Yerli ve Yabancı en son Film ve Dizileri Full HD 1080p Bluray Tek Part Full izle"
+dependencies {
+    // Cloudstream Plugin API bağımlılığı
+    // Bu, Plugin, registerMainAPI, Score gibi tüm temel Cloudstream sınıflarını sağlayacaktır.
+    implementation(project.dependencies.platform("com.lagradost:cloudstream-bom:LATEST_VERSION"))
+    implementation("com.lagradost:cloudstream-plugin-api")
 
-    /**
-     * Status int as the following:
-     * 0: Down
-     * 1: Ok
-     * 2: Slow
-     * 3: Beta only
-    **/
-    status  = 1 // will be 3 if unspecified
-    tvTypes = listOf("Movie", "TvSeries")
-    iconUrl = "https://www.google.com/s2/favicons?domain=www.filmizleilk.com&sz=%size%"
+    // Kotlin standart kütüphanesi
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 }
+
+// LATEST_VERSION kısmını projenin ana build.gradle dosyasındaki
+// Cloudstream sürüm numarasıyla değiştirmeniz gerekebilir.
