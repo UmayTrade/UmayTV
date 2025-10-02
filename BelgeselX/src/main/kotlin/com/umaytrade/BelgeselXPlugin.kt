@@ -1,13 +1,18 @@
 package com.umaytrade
 
-import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.plugins.Plugin
+import com.lagradost.cloudstream3.Plugin
+import com.lagradost.cloudstream3.MainAPI
 import android.content.Context
 
 @CloudstreamPlugin
 class BelgeselXPlugin: Plugin() {
     override fun load(context: Context) {
-        // All providers should be added in this manner. Please don't edit the providers list directly.
         registerMainAPI(BelgeselX())
     }
+}
+
+class BelgeselX : MainAPI() {
+    override var mainUrl = "https://belgeselx.com/"
+    override var name = "BelgeselX"
+    override var lang = "tr"
 }
