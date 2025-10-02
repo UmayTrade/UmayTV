@@ -43,7 +43,7 @@ subprojects {
     }
 
     android {
-        namespace = "recloudstream"
+        namespace = "UmayTrade"
 
         defaultConfig {
             minSdk = 21
@@ -75,7 +75,7 @@ subprojects {
 
         // These dependencies can include any of those which are added by the app,
         // but you don't need to include any of them if you don't need them.
-        // https://github.com/recloudstream/cloudstream/blob/master/app/build.gradle.kts
+        // https://github.com/UmayTrade/UmayTV/blob/master/app/build.gradle.kts
         implementation(kotlin("stdlib")) // Adds Standard Kotlin Features
         implementation("com.github.Blatzar:NiceHttp:0.4.11") // HTTP Lib
         implementation("org.jsoup:jsoup:1.18.3") // HTML Parser
