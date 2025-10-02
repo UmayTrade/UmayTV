@@ -43,7 +43,7 @@ subprojects {
     }
 
     android {
-        namespace = "recloudstream"
+        namespace = "umaytrade"
 
         defaultConfig {
             minSdk = 21
