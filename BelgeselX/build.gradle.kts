@@ -21,7 +21,13 @@ android {
     }
 }
 
+repositories {
+    google()
+    mavenCentral()
+    maven("https://jitpack.io") // JitPack ekli
+}
+
 dependencies {
-    // Cloudstream ana API JitPack'ten çekilecek
-    implementation("com.github.recloudstream:cloudstream:3.2.0")
+    // Cloudstream Plugin API JitPack üzerinden
+    implementation("com.github.Lagradost:CloudStream3:3.1.0")
 }
