@@ -1,13 +1,14 @@
 package com.umaytrade
 
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.plugins.Plugin
-import android.content.Context
+import com.lagradost.cloudstream3.plugins.PluginManager
+import com.lagradost.cloudstream3.APIHolder
+import com.umaytrade.belgeselx.BelgeselX
 
 @CloudstreamPlugin
-class BelgeselXPlugin: Plugin() {
-    override fun load(context: Context) {
-        registerMainAPI(BelgeselX())
-        registerExtractorAPI(Odnoklassniki())
+class BelgeselXPlugin: CloudstreamPlugin() {
+    override fun load(context: PluginManager.Context) {
+        // Burada API kaydı yapılır
+        APIHolder.registerAPI(BelgeselX())
     }
 }
