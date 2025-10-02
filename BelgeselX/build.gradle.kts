@@ -22,9 +22,6 @@ android {
 }
 
 dependencies {
-    // Common modülü yoksa bu satırı kaldır
-    // implementation(project(":common"))
-
-    // Cloudstream 3 ana API
-    implementation("com.lagradost:cloudstream3:3.0.0")
+    // Cloudstream ana API JitPack'ten çekilecek
+    implementation("com.github.recloudstream:cloudstream:3.2.0")
 }
