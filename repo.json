@@ -1,8 +1,14 @@
 {
-    "name": "Cloudstream providers repository",
-    "description": "Cloudstream extension Repository",
-    "manifestVersion": 1,
-    "pluginLists": [
-      "https://raw.githubusercontent.com/UmayTrade/UmayTV/builds/plugins.json"
+    "name": "TurkuazTV",
+    "version": "1.0.0",
+    "description": "TurkuazTV ve BelgeselX için CloudStream eklentileri",
+    "icon": "https://www.google.com/s2/favicons?domain=belgeselx.com&sz=64",
+    "plugins": [
+        {
+            "name": "BelgeselX",
+            "version": "1.0.0",
+            "jarUrl": "https://github.com/UmayTrade/TurkuazTV/releases/download/v1.0.0/BelgeselX.cs3",
+            "class": "com.lagradost.cloudstream3.turkuaztv.TurkuazTVPlugin"
+        }
     ]
 }
