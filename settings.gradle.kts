@@ -1,2 +1,9 @@
-rootProject.name = "TurkuazTV"
-include(":BelgeselX")
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+        google()
+    }
+}
+
+rootProject.name = "TurkuazTV-Plugin"

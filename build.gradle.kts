@@ -1,11 +1,12 @@
 plugins {
-    kotlin("jvm") version "1.8.22" apply false
+    id("java-library")
 }
 
-allprojects {
-    repositories {
-        mavenCentral()
-        google()
-        maven { url = uri("https://jitpack.io") }
-    }
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+dependencies {
+    implementation("com.lagradost:cloudstream3-core:3.4.5")
 }
