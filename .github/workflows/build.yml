@@ -1,4 +1,4 @@
-name: Build CloudStream Plugins
+name: Build CloudStream Plugin
 
 on:
   push:
@@ -22,17 +22,17 @@ jobs:
     - name: Make gradlew executable
       run: chmod +x ./gradlew
       
-    - name: Build with debug info
+    - name: Build BelgeselX plugin
       run: |
-        ./gradlew clean
-        ./gradlew build --stacktrace --info
+        ./gradlew :BelgeselX:clean
+        ./gradlew :BelgeselX:build --stacktrace
         
     - name: List build outputs
       run: find . -name "*.cs3" -type f
       
-    - name: Upload artifacts
+    - name: Upload plugin
       uses: actions/upload-artifact@v4
       with:
-        name: cloudstream-plugins
-        path: "**/build/libs/*.cs3"
+        name: belgeselx-plugin
+        path: "BelgeselX/build/libs/*.cs3"
         retention-days: 30
