@@ -1,13 +1,11 @@
 rootProject.name = "UmayTvPlugins"
 
-val disabled = listOf<String>("__Temel")
-
-File(rootDir, ".").eachDir { dir ->
-    if (!disabled.contains(dir.name) && File(dir, "build.gradle.kts").exists()) {
-        include(dir.name)
-    }
-}
-
-fun File.eachDir(block: (File) -> Unit) {
-    listFiles()?.filter { it.isDirectory }?.forEach { block(it) }
+// Include all subprojects that have build.gradle.kts files
+File(rootDir, ".").listFiles()?.filter { 
+    it.isDirectory && 
+    File(it, "build.gradle.kts").exists() && 
+    it.name != "gradle" &&
+    !it.name.startsWith(".")
+}?.forEach {
+    include(it.name)
 }
