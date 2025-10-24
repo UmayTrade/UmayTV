@@ -9,9 +9,9 @@ buildscript {
     }
 
     dependencies {
-        classpath("com.android.tools.build:gradle:8.2.1")
+        classpath("com.android.tools.build:gradle:7.4.2")
         classpath("com.github.recloudstream:gradle:master-SNAPSHOT")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.0")
     }
 }
 
@@ -38,7 +38,7 @@ subprojects {
     }
 
     android {
-        compileSdk = 34
+        compileSdkVersion(34)
         namespace = "com.umaytv"
 
         defaultConfig {
@@ -69,11 +69,11 @@ subprojects {
 
         cloudstream("com.lagradost:cloudstream3:pre-release")
         implementation(kotlin("stdlib"))
-        implementation("com.github.Blatzar:NiceHttp:0.4.11")
-        implementation("org.jsoup:jsoup:1.16.2")
-        implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.2")
-        implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
-        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+        implementation("com.github.Blatzar:NiceHttp:0.4.9")
+        implementation("org.jsoup:jsoup:1.15.4")
+        implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.14.2")
+        implementation("com.fasterxml.jackson.core:jackson-databind:2.14.2")
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
     }
 }
 
