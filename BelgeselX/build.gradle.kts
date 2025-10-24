@@ -9,6 +9,7 @@ cloudstream {
     iconUrl = "https://www.google.com/s2/favicons?domain=belgeselx.com&sz=%size%"
 }
 
-dependencies {
-    implementation(project(":"))
-}
+// Bağımlılık kaldırıldı - CloudStream otomatik olarak sağlıyor
+// dependencies {
+//     implementation(project(":"))
+// }
