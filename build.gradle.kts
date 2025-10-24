@@ -39,7 +39,7 @@ subprojects {
 
     android {
         compileSdkVersion(34)
-        namespace = "com.umaytv"
+        namespace = "com.umaytv.${project.name.toLowerCase()}"
 
         defaultConfig {
             minSdk = 21
@@ -70,11 +70,8 @@ subprojects {
         cloudstream("com.lagradost:cloudstream3:pre-release")
         implementation(kotlin("stdlib"))
         
-        // Güncel ve çalışan dependency'ler
-        implementation("com.github.Blatzar:NiceHttp:0.4.5")
+        // CloudStream'in built-in dependency'leri yeterli
         implementation("org.jsoup:jsoup:1.15.3")
-        implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.14.1")
-        implementation("com.fasterxml.jackson.core:jackson-databind:2.14.1")
         implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
     }
 }
