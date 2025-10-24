@@ -1,6 +1,6 @@
-// ! Bu araç @keyiflerolsun tarafından | @KekikAkademi için yazılmıştır.
+// ! Bu araç UmayTrade tarafından düzenlenmiştir.
 
-package com.umaytrade
+package com.umaytv
 
 import java.util.Locale
 import android.util.Log
@@ -130,7 +130,7 @@ class BelgeselX : MainAPI() {
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         Log.d("BLX", "data » $data")
         val source = app.get(data)
-        val document = source.document // HTML'e daha kolay erişim için
+        val document = source.document
 
         // 1. Yeni stil iframe yükleme (newX.php)
         val script = document.select("script").find { it.data().contains("var hedefA = document.getElementById") }?.data() ?: ""
@@ -146,7 +146,7 @@ class BelgeselX : MainAPI() {
                     var quality   = it.groupValues[2]
                     if (quality == "FULL") {
                         quality   = "1080p"
-                        thisName  = "Google" // Veya uygun başka bir isim
+                        thisName  = "Google"
                     }
                     Log.d("BLX", "quality » $quality")
                     Log.d("BLX", "videoUrl » $videoUrl")
@@ -163,22 +163,14 @@ class BelgeselX : MainAPI() {
             }
         }
 
-        // 2. Sayfada doğrudan gömülü iframe yükleme (bakalim.py mantığı)
-        // Python betiğindeki regex kullanıldı.
-        // Regex("""<iframe\s+[^>]*src=\\"([^\\"']+)\\"""").findAll(source.text).forEach { alternatifUrlMatchResult ->
-        // val alternatifUrl = alternatifUrlMatchResult.groupValues[1]
-
-        // Jsoup ile daha güvenilir bir yol deneyelim
+        // 2. Sayfada doğrudan gömülü iframe yükleme
         document.select("div.video-player iframe").forEach { iframeElement ->
             val iframeSrc = fixUrlNull(iframeElement.attr("src"))
             if (iframeSrc != null) {
                 Log.d("BLX", "alternatifUrl (iframe element) » $iframeSrc")
-                // İçerideki iframe'i alıp loadExtractor'a gönder.
-                // Örneğin, Odnoklassniki'ye yönlendiren bir aracı sayfa olabilir.
                 loadExtractor(iframeSrc, data, subtitleCallback, callback)
             }
         }
-
 
         return true
     }
