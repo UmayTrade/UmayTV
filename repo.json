@@ -1,0 +1,8 @@
+{
+    "name": "UmayTv",
+    "description": "UmayTv Türkçe içerik havuzu",
+    "manifestVersion": 1,
+    "pluginLists": [
+        "https://raw.githubusercontent.com/UmayTrade/UmayTv/builds/plugins.json"
+    ]
+}
