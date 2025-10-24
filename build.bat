@@ -9,9 +9,9 @@ echo ========================================
 
 cd /d "%PROJECT_DIR%"
 echo Derleme başlatılıyor...
-.\gradlew.bat clean build :UmayTv:packagePlugin
+.\gradlew.bat clean build assembleRelease
 
 echo ========================================
-echo Build tamamlandı. Çıktı:
-echo %PROJECT_DIR%UmayTv\build\release\UmayTv.cs3
+echo Build tamamlandı. Çıktılar:
+dir /s *.cs3
 pause
