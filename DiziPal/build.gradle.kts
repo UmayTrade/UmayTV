@@ -1,7 +1,7 @@
 version = 50
 
 cloudstream {
-    authors     = listOf("sarapcanagii")
+    authors     = listOf("UmayTrade")
     language    = "tr"
     description = "En yeni dizileri güvenli ve hızlı şekilde sunar."
     status  = 1
