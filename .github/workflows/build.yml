@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build Application
+    name: Build Application and Generate CS3
     runs-on: ubuntu-latest
     
     steps:
@@ -65,32 +65,197 @@ jobs:
           go build -o bin/ ./...
         fi
 
+    - name: Create CS3 configuration files
+      run: |
+        echo "Creating CS3 configuration files..."
+        mkdir -p .cs3
+        
+        # Main CS3 config
+        cat > .cs3/config.json << EOF
+        {
+          "project": {
+            "name": "UmayTV",
+            "version": "1.0.0",
+            "description": "UmayTV Streaming Platform",
+            "repository": "https://github.com/UmayTrade/UmayTV"
+          },
+          "build": {
+            "output_dir": "dist",
+            "assets_dir": "assets",
+            "plugins_config": "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/plugins.json"
+          },
+          "cs3_files": [
+            "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/core.cs3",
+            "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/ui.cs3",
+            "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/player.cs3"
+          ]
+        }
+        EOF
+        
+        # Core CS3 file
+        cat > .cs3/core.cs3 << EOF
+        {
+          "name": "umaytv-core",
+          "version": "1.0.0",
+          "type": "core",
+          "description": "UmayTV Core Functionality",
+          "entry_point": "src/main.js",
+          "dependencies": [],
+          "config": {
+            "api_endpoint": "https://api.umay.tv",
+            "cdn_url": "https://cdn.umay.tv"
+          }
+        }
+        EOF
+        
+        # UI CS3 file
+        cat > .cs3/ui.cs3 << EOF
+        {
+          "name": "umaytv-ui",
+          "version": "1.0.0",
+          "type": "ui",
+          "description": "UmayTV User Interface Components",
+          "entry_point": "src/ui/components.js",
+          "dependencies": ["umaytv-core"],
+          "config": {
+            "theme": "dark",
+            "language": "tr"
+          }
+        }
+        EOF
+        
+        # Player CS3 file
+        cat > .cs3/player.cs3 << EOF
+        {
+          "name": "umaytv-player",
+          "version": "1.0.0",
+          "type": "player",
+          "description": "UmayTV Video Player Engine",
+          "entry_point": "src/player/engine.js",
+          "dependencies": ["umaytv-core"],
+          "config": {
+            "quality": "auto",
+            "autoplay": false,
+            "subtitles": true
+          }
+        }
+        EOF
+        
+        echo "CS3 files created successfully"
+        ls -la .cs3/
+
+    - name: Create plugins.json with CS3 URLs
+      run: |
+        echo "Creating plugins.json with CS3 file URLs..."
+        
+        PLUGINS_JSON='{
+          "name": "UmayTV Plugins",
+          "version": "1.0.0",
+          "repository": "https://github.com/UmayTrade/UmayTV",
+          "plugins": [
+            {
+              "id": "umaytv-core",
+              "name": "UmayTV Core",
+              "version": "1.0.0",
+              "description": "Core functionality for UmayTV platform",
+              "author": "UmayTrade",
+              "cs3_url": "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/core.cs3",
+              "enabled": true,
+              "dependencies": []
+            },
+            {
+              "id": "umaytv-ui",
+              "name": "UmayTV UI",
+              "version": "1.0.0",
+              "description": "User interface components and themes",
+              "author": "UmayTrade",
+              "cs3_url": "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/ui.cs3",
+              "enabled": true,
+              "dependencies": ["umaytv-core"]
+            },
+            {
+              "id": "umaytv-player",
+              "name": "UmayTV Player",
+              "version": "1.0.0",
+              "description": "Video player engine with multiple codec support",
+              "author": "UmayTrade",
+              "cs3_url": "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/player.cs3",
+              "enabled": true,
+              "dependencies": ["umaytv-core"]
+            },
+            {
+              "id": "umaytv-analytics",
+              "name": "UmayTV Analytics",
+              "version": "1.0.0",
+              "description": "User analytics and tracking system",
+              "author": "UmayTrade",
+              "cs3_url": "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/analytics.cs3",
+              "enabled": true,
+              "dependencies": ["umaytv-core"]
+            }
+          ],
+          "config": {
+            "auto_update": true,
+            "cache_plugins": true,
+            "log_level": "info"
+          }
+        }'
+        
+        echo "$PLUGINS_JSON" > plugins.json
+        echo "plugins.json created successfully"
+
+    - name: Create repo.json with plugins.json URL
+      run: |
+        echo "Creating repo.json..."
+        
+        REPO_JSON='{
+          "name": "UmayTV Repository",
+          "version": "1.0.0",
+          "description": "Official UmayTV plugins and components repository",
+          "url": "https://github.com/UmayTrade/UmayTV",
+          "plugins_config": "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/plugins.json",
+          "cs3_config": "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/config.json",
+          "last_updated": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
+          "plugins_count": 4,
+          "categories": ["core", "ui", "player", "analytics"]
+        }'
+        
+        echo "$REPO_JSON" > repo.json
+        echo "repo.json created successfully"
+
     - name: Create basic build structure
       run: |
         mkdir -p dist
         echo "UmayTV Build - $(date)" > dist/build-info.txt
         echo "Commit: ${{ github.sha }}" >> dist/build-info.txt
         echo "Branch: ${{ github.ref }}" >> dist/build-info.txt
+        echo "CS3 Files Generated:" >> dist/build-info.txt
+        echo "- .cs3/config.json" >> dist/build-info.txt
+        echo "- .cs3/core.cs3" >> dist/build-info.txt
+        echo "- .cs3/ui.cs3" >> dist/build-info.txt
+        echo "- .cs3/player.cs3" >> dist/build-info.txt
+        echo "Configuration Files:" >> dist/build-info.txt
+        echo "- plugins.json" >> dist/build-info.txt
+        echo "- repo.json" >> dist/build-info.txt
         
-        # Eğer public klasörü varsa kopyala
-        if [ -d "public" ]; then
-          cp -r public/* dist/
-        fi
-        
-        # Eğer static dosyalar varsa
-        if [ -d "static" ]; then
-          cp -r static dist/ 2>/dev/null || true
-        fi
+        # Copy all generated files to dist
+        cp plugins.json dist/
+        cp repo.json dist/
+        cp -r .cs3 dist/
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: build-output
-        path: dist/
+        path: |
+          dist/
+          plugins.json
+          repo.json
+          .cs3/
         retention-days: 7
 
   validate:
-    name: Validate Repository
+    name: Validate Repository and CS3 Files
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -98,24 +263,43 @@ jobs:
       with:
         ref: ${{ github.ref }}
 
-    - name: Validate files
+    - name: Validate JSON files
       run: |
-        echo "=== Repository Validation ==="
-        echo "Current branch: ${{ github.ref }}"
-        echo "Working directory:"
-        pwd
-        ls -la
+        echo "Validating JSON files..."
         
-        echo "=== File Structure ==="
-        find . -type f -name "*.md" -o -name "*.py" -o -name "*.js" -o -name "*.json" -o -name "*.txt" -o -name "*.yml" -o -name "*.yaml" | sort
+        # Validate plugins.json
+        if [ -f "plugins.json" ]; then
+          python -m json.tool plugins.json > /dev/null && echo "✓ plugins.json is valid JSON"
+        fi
         
-        echo "=== Top-level files ==="
-        ls -la
+        # Validate repo.json
+        if [ -f "repo.json" ]; then
+          python -m json.tool repo.json > /dev/null && echo "✓ repo.json is valid JSON"
+        fi
+        
+        # Validate CS3 files
+        if [ -d ".cs3" ]; then
+          for cs3_file in .cs3/*.cs3 .cs3/*.json; do
+            if [ -f "$cs3_file" ]; then
+              python -m json.tool "$cs3_file" > /dev/null && echo "✓ $cs3_file is valid JSON"
+            fi
+          done
+        fi
 
-  docs:
-    name: Generate Documentation
+    - name: Validate file structure
+      run: |
+        echo "=== Generated Files ==="
+        ls -la
+        echo "=== CS3 Directory ==="
+        ls -la .cs3/ || echo "No .cs3 directory"
+        echo "=== JSON Files ==="
+        find . -name "*.json" -type f
+
+  deploy-configs:
+    name: Deploy Configuration Files
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    needs: [build, validate]
+    if: github.ref == 'refs/heads/main'
     
     steps:
     - name: Checkout code
@@ -123,21 +307,17 @@ jobs:
       with:
         ref: ${{ github.ref }}
 
-    - name: Generate basic docs
-      run: |
-        mkdir -p docs
-        echo "# UmayTV Documentation" > docs/README.md
-        echo "Build Date: $(date)" >> docs/README.md
-        echo "Version: ${{ github.sha }}" >> docs/README.md
-        echo "" >> docs/README.md
-        echo "## Repository Structure" >> docs/README.md
-        echo '```' >> docs/README.md
-        find . -type f -name "*.py" -o -name "*.js" -o -name "*.json" -o -name "*.md" | head -30 >> docs/README.md
-        echo '```' >> docs/README.md
-
-    - name: Upload documentation
-      uses: actions/upload-artifact@v4
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
       with:
-        name: documentation
-        path: docs/
-        retention-days: 30
+        name: build-output
+        path: downloaded-artifacts
+
+    - name: Display deployed files
+      run: |
+        echo "=== Files ready for deployment ==="
+        find downloaded-artifacts -type f -name "*.json" -o -name "*.cs3"
+        echo "=== CS3 Files and URLs ==="
+        echo "plugins.json URL: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/plugins.json"
+        echo "repo.json URL: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/repo.json"
+        echo "CS3 Config URL: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/config.json"
