@@ -22,13 +22,6 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Display repository structure
-      run: |
-        echo "Repository structure:"
-        ls -la
-        echo "Project files:"
-        find . -name "*.py" -o -name "*.js" -o -name "*.json" -o -name "*.md" -o -name "*.txt" | head -20
-
     - name: Create CS3 configuration files
       run: |
         echo "Creating CS3 configuration files..."
@@ -123,14 +116,8 @@ jobs:
         }
         EOF
         
-        echo "CS3 files created:"
+        echo "✅ CS3 files created successfully"
         ls -la .cs3/
-        echo "CS3 file contents:"
-        for file in .cs3/*; do
-          echo "=== $file ==="
-          cat "$file"
-          echo ""
-        done
 
     - name: Create plugins.json with CS3 URLs
       run: |
@@ -191,8 +178,7 @@ jobs:
         }
         EOF
         
-        echo "plugins.json created:"
-        cat plugins.json
+        echo "✅ plugins.json created successfully"
 
     - name: Create repo.json with plugins.json URL
       run: |
@@ -212,34 +198,28 @@ jobs:
         }
         EOF
         
-        echo "repo.json created:"
-        cat repo.json
+        echo "✅ repo.json created successfully"
 
     - name: Verify all files exist
       run: |
         echo "=== Verifying generated files ==="
+        echo "Current directory: $(pwd)"
         ls -la
+        
         echo "=== CS3 files ==="
-        ls -la .cs3/ || echo "No .cs3 directory"
+        ls -la .cs3/
+        
         echo "=== JSON files ==="
-        ls -la *.json || echo "No JSON files"
+        ls -la *.json
         
-        # Check if files exist
-        [ -f "plugins.json" ] && echo "✓ plugins.json exists" || echo "✗ plugins.json missing"
-        [ -f "repo.json" ] && echo "✓ repo.json exists" || echo "✗ repo.json missing"
-        [ -d ".cs3" ] && echo "✓ .cs3 directory exists" || echo "✗ .cs3 directory missing"
-        
-        if [ -d ".cs3" ]; then
-          echo "CS3 files:"
-          for file in .cs3/*; do
-            [ -f "$file" ] && echo "✓ $file exists" || echo "✗ $file missing"
-          done
-        fi
+        # Count files
+        echo "CS3 files count: $(ls -1 .cs3/ | wc -l)"
+        echo "JSON files count: $(ls -1 *.json 2>/dev/null | wc -l || echo 0)"
 
     - name: Upload all artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: umaytv-build-artifacts
+        name: umaytv-configs
         path: |
           plugins.json
           repo.json
@@ -247,7 +227,7 @@ jobs:
         retention-days: 7
 
   validate:
-    name: Validate Repository and CS3 Files
+    name: Validate Files
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -257,35 +237,33 @@ jobs:
       run: |
         echo "Validating JSON files..."
         
+        # Install jq for JSON validation
+        sudo apt-get update && sudo apt-get install -y jq
+        
         # Validate plugins.json
         if [ -f "plugins.json" ]; then
-          python -m json.tool plugins.json > /dev/null && echo "✓ plugins.json is valid JSON" || echo "✗ plugins.json is invalid JSON"
+          jq empty plugins.json && echo "✅ plugins.json is valid JSON" || echo "❌ plugins.json is invalid JSON"
         else
-          echo "✗ plugins.json not found"
+          echo "❌ plugins.json not found"
         fi
         
         # Validate repo.json
         if [ -f "repo.json" ]; then
-          python -m json.tool repo.json > /dev/null && echo "✓ repo.json is valid JSON" || echo "✗ repo.json is invalid JSON"
+          jq empty repo.json && echo "✅ repo.json is valid JSON" || echo "❌ repo.json is invalid JSON"
         else
-          echo "✗ repo.json not found"
+          echo "❌ repo.json not found"
         fi
         
         # Validate CS3 files
         if [ -d ".cs3" ]; then
           for cs3_file in .cs3/*.cs3 .cs3/*.json; do
             if [ -f "$cs3_file" ]; then
-              python -m json.tool "$cs3_file" > /dev/null && echo "✓ $cs3_file is valid JSON" || echo "✗ $cs3_file is invalid JSON"
+              jq empty "$cs3_file" && echo "✅ $cs3_file is valid JSON" || echo "❌ $cs3_file is invalid JSON"
             fi
           done
         else
-          echo "✗ .cs3 directory not found"
+          echo "❌ .cs3 directory not found"
         fi
-
-    - name: Display file structure
-      run: |
-        echo "=== Final File Structure ==="
-        find . -name "*.json" -o -name "*.cs3" | sort
 
   deploy:
     name: Deploy Configuration Files
@@ -302,46 +280,52 @@ jobs:
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
-        name: umaytv-build-artifacts
-        path: .
+        name: umaytv-configs
+        path: ./
 
     - name: Verify downloaded files
       run: |
         echo "=== Downloaded files ==="
         ls -la
         echo "=== Downloaded CS3 files ==="
-        ls -la .cs3/ || echo "No .cs3 directory in downloaded artifacts"
+        ls -la .cs3/
         
-        # Check if we have the files
-        [ -f "plugins.json" ] && echo "✓ plugins.json downloaded" || echo "✗ plugins.json missing"
-        [ -f "repo.json" ] && echo "✓ repo.json downloaded" || echo "✗ repo.json missing"
-        [ -d ".cs3" ] && echo "✓ .cs3 directory downloaded" || echo "✗ .cs3 directory missing"
+        # Verify file counts
+        echo "Downloaded JSON files: $(ls -1 *.json 2>/dev/null | wc -l || echo 0)"
+        echo "Downloaded CS3 files: $(ls -1 .cs3/* 2>/dev/null | wc -l || echo 0)"
 
-    - name: Commit generated files
+    - name: Setup Git Identity
       run: |
-        echo "Committing generated files..."
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Add and Commit files
+      run: |
+        echo "Adding generated files to git..."
         
-        # Configure git
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
-        # Add generated files
-        git add plugins.json repo.json .cs3/ || echo "Some files may not exist"
+        # Add all generated files
+        git add plugins.json repo.json .cs3/ || true
         
         # Check if there are changes
-        if git status --porcelain | grep -q .; then
+        if ! git diff --staged --quiet; then
           echo "Changes detected, committing..."
-          git commit -m "chore: auto-generate CS3 files and configs [skip ci]"
-          git push
-          echo "✓ Files committed successfully"
+          git commit -m "chore: auto-generate CS3 configs and plugins [skip ci]"
+          echo "✅ Files committed successfully"
         else
-          echo "✓ No changes to commit"
+          echo "✅ No changes to commit - files are up to date"
         fi
+
+    - name: Push changes
+      run: |
+        echo "Pushing changes to repository..."
+        git push origin main
+        echo "✅ Changes pushed successfully"
 
     - name: Display final URLs
       run: |
-        echo "🎉 DEPLOYMENT COMPLETE"
-        echo "======================"
+        echo ""
+        echo "🎉 DEPLOYMENT COMPLETED SUCCESSFULLY!"
+        echo "====================================="
         echo ""
         echo "📁 CONFIGURATION FILES:"
         echo "📄 plugins.json: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/plugins.json"
@@ -354,4 +338,4 @@ jobs:
         echo "📺 Player: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/player.cs3"
         echo "📊 Analytics: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/analytics.cs3"
         echo ""
-        echo "✅ All files are now accessible via GitHub raw URLs"
+        echo "✅ All configuration files are now live and accessible!"
