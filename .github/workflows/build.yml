@@ -1,74 +1,68 @@
-name: Build Unity Project
+name: CloudStream Derleyici
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-
-env:
-  UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-  UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-  UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-
+    branches:
+      - master
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.yml"
+      - "**/*.jpg"
+      - "**/*.png"
+      - "**/*.py"
+      - "**/*.m3u"
+      - "**/*.m3u8"
 jobs:
-  build:
-    name: Build for Windows, Android, WebGL
-    runs-on: ubuntu-latest
-    
-    strategy:
-      matrix:
-        target: [StandaloneWindows64, Android, WebGL]
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        lfs: true
-
-    - name: Cache Library
-      uses: actions/cache@v3
-      with:
-        path: Library
-        key: Library-${{ matrix.target }}
-        restore-keys: |
-          Library-
-
-    - name: Create Unity Activation File
-      if: matrix.target == 'StandaloneWindows64'
-      run: |
-        echo "$UNITY_LICENSE" > unity.ulf
-      env:
-        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-
-    - name: Build Unity Project
-      uses: game-ci/unity-builder@v4
-      with:
-        targetPlatform: ${{ matrix.target }}
-        unityVersion: 2022.3.21f1
-
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.target }}-Build
-        path: build/${{ matrix.target }}
-
-  test:
-    name: Run Unity Tests
+  CloudStreamDerleyici:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        lfs: true
+      - name: "'src' Depo Kontrolü"
+        uses: actions/checkout@v4.2.2
+        with:
+          path: "src"
 
-    - name: Run Unity Tests
-      uses: game-ci/unity-test-runner@v4
-      with:
-        unityVersion: 2022.3.21f1
+      - name: "'build' Depo Kontrolü"
+        uses: actions/checkout@v4.2.2
+        with:
+          ref: "builds"
+          path: "builds"
 
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v4
-      with:
-        name: Test Results
-        path: artifacts/**/*.xml
+      - name: Eski Derlemeleri Temizle
+        run: rm -f $GITHUB_WORKSPACE/builds/*.cs3 || true
+
+      - name: JDK 17 Ayarla
+        uses: actions/setup-java@v4.6.0
+        with:
+          distribution: adopt
+          java-version: '17'
+
+      - name: Android SDK Ayarla
+        uses: android-actions/setup-android@v3.2.2
+
+      - name: Gradle Önbelleğini Temizle
+        run: rm -rf ~/.gradle/caches/
+
+      - name: Eklentileri Derle
+        run: |
+          cd $GITHUB_WORKSPACE/src
+          chmod +x gradlew
+          ./gradlew make makePluginsJson
+          cp */build/*.cs3 $GITHUB_WORKSPACE/builds || true
+          cp build/plugins.json $GITHUB_WORKSPACE/builds || true
+
+      - name: Derlemeleri Yükle
+        run: |
+          cd $GITHUB_WORKSPACE/builds
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add .
+          git commit -m "$GITHUB_SHA::7 'nın Derlenmesi" || echo "Nothing to commit"
+          git push --set-upstream origin builds --force
