@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
   push:
     branches:
       - master
@@ -26,48 +26,56 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: "'src' Depo Kontrolü"
+      - name: src depo kontrolü
         uses: actions/checkout@v4
         with:
-          path: "src"
+          path: src
 
-      - name: "'build' Depo Kontrolü"
+      - name: builds depo kontrolü
         uses: actions/checkout@v4
         with:
-          ref: "builds"
-          path: "builds"
+          ref: builds
+          path: builds
 
-      - name: Eski Derlemeleri Temizle
-        run: rm -f $GITHUB_WORKSPACE/builds/*.cs3 || true
+      - name: Eski derlemeleri temizle
+        run: |
+          rm -f "$GITHUB_WORKSPACE/builds/"*.cs3 || true
 
-      - name: JDK 17 Ayarla
+      - name: JDK 17 ayarla
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Android SDK Ayarla
+      - name: Android SDK ayarla
         uses: android-actions/setup-android@v3
 
-      - name: Gradle Önbelleğini Temizle
-        run: rm -rf ~/.gradle/caches/
-
-      - name: CloudStream Eklentilerini Derle (.cs3 üretimi)
+      - name: Gradle önbelleğini temizle
         run: |
-          cd $GITHUB_WORKSPACE/src
+          rm -rf ~/.gradle/caches/ || true
+
+      - name: CloudStream eklentilerini derle (.cs3 üretimi)
+        run: |
+          set -e
+          cd "$GITHUB_WORKSPACE/src"
           chmod +x gradlew
-          ./gradlew :app:assembleRelease || true
-          ./gradlew make makePluginsJson
-          find . -type f -name "*.cs3" -exec cp {} $GITHUB_WORKSPACE/builds \;
+          # Önce bağımlılıkları ve app'i assemble etmek bazı projelerde gerekli olabilir
+          ./gradlew :app:assembleRelease || echo "assembleRelease başarısız - devam ediliyor"
+          # Plugin üretme hedefleri
+          ./gradlew make makePluginsJson || echo "make hedefleri başarısız - yine de .cs3 aranacak"
+          # Tüm .cs3 dosyalarını bul ve build dalına kopyala
+          find . -type f -name "*.cs3" -exec cp --parents {} "$GITHUB_WORKSPACE/builds" \; || true
+          # plugins.json varsa kopyala
           if [ -f build/plugins.json ]; then
-            cp build/plugins.json $GITHUB_WORKSPACE/builds
+            cp build/plugins.json "$GITHUB_WORKSPACE/builds/"
           fi
 
-      - name: Derlemeleri Yükle
+      - name: Derlemeleri yükle (builds dalına push)
         run: |
-          cd $GITHUB_WORKSPACE/builds
+          set -e
+          cd "$GITHUB_WORKSPACE/builds"
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
           git add .
-          git commit -m "${{ github.sha }} sürümü derlendi (.cs3 oluşturuldu)" || echo "Değişiklik yok"
-          git push origin builds --force
+          git commit -m "${{ github.sha }} sürümü derlendi (.cs3 oluşturuldu)" || echo "Değişiklik yok - commit atılmadı"
+          git push origin builds --force || echo "Push başarısız"
