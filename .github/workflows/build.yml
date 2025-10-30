@@ -115,13 +115,6 @@ jobs:
         
         echo "✅ CS3 files created:"
         ls -la .cs3/
-        echo ""
-        echo "📄 CS3 File Contents:"
-        for file in .cs3/*; do
-          echo "=== $(basename $file) ==="
-          cat "$file"
-          echo ""
-        done
 
     - name: Create plugins.json with CS3 URLs
       run: |
@@ -182,8 +175,7 @@ jobs:
         }
         EOF
         
-        echo "✅ plugins.json created:"
-        cat plugins.json
+        echo "✅ plugins.json created"
 
     - name: Create repo.json with plugins.json URL
       run: |
@@ -203,8 +195,7 @@ jobs:
         }
         EOF
         
-        echo "✅ repo.json created:"
-        cat repo.json
+        echo "✅ repo.json created"
 
     - name: Validate JSON files
       run: |
@@ -226,45 +217,31 @@ jobs:
           fi
         done
 
-    - name: Verify all generated files
-      run: |
-        echo "📁 Verifying all generated files..."
-        echo "=== Current directory structure ==="
-        ls -la
-        echo ""
-        echo "=== CS3 directory ==="
-        ls -la .cs3/
-        echo ""
-        echo "=== File counts ==="
-        echo "CS3 files: $(find .cs3 -type f | wc -l)"
-        echo "JSON files: $(find . -maxdepth 1 -name "*.json" -type f | wc -l)"
-
     - name: Setup Git Identity
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-    - name: Check for changes
-      id: check-changes
+    - name: Add and commit changes
       run: |
-        echo "Checking for changes to commit..."
+        echo "📝 Adding and committing changes..."
+        
+        # Add generated files
         git add plugins.json repo.json .cs3/
         
-        if git diff --staged --quiet; then
-          echo "changes=false" >> $GITHUB_OUTPUT
-          echo "✅ No changes to commit"
+        # Check if there are changes
+        if ! git diff --staged --quiet; then
+          git commit -m "chore: auto-generate CS3 configs and plugins [skip ci]"
+          echo "✅ Changes committed"
         else
-          echo "changes=true" >> $GITHUB_OUTPUT
-          echo "📝 Changes detected, ready to commit"
+          echo "✅ No changes to commit"
         fi
 
-    - name: Commit and push changes
-      if: steps.check-changes.outputs.changes == 'true'
+    - name: Push changes
       run: |
-        echo "🚀 Committing and pushing changes..."
-        git commit -m "chore: auto-generate CS3 configs and plugins [skip ci]"
-        git push
-        echo "✅ Changes committed and pushed successfully"
+        echo "🚀 Pushing changes to repository..."
+        git push origin HEAD:main
+        echo "✅ Changes pushed successfully"
 
     - name: Display final URLs
       run: |
