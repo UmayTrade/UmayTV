@@ -1,4 +1,4 @@
-package com.UmayTrad
+package com.UmayTrade
 
 import android.util.Log
 import org.jsoup.nodes.Element
