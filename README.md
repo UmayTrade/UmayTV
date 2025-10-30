@@ -9,4 +9,3 @@ CloudStream için Türkçe yayın yapan sitelere ait eklentiler.
 
 1. **CloudStream uygulamasını** [buradan](https://github.com/recloudstream/cloudstream/releases) indirin
 2. **Uygulamayı açın** → **Ayarlar** → **Depolar** → **Depo Ekle**
-3. **Kısa kod olarak** `umaytv` yazın veya URL olarak şunu ekleyin:
