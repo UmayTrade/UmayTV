@@ -1,23 +1,69 @@
-name: Generate and Deploy CS3 Configs
+name: Build and Deploy
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, develop ]
   pull_request:
     branches: [ main, master ]
 
 jobs:
-  generate-and-deploy:
-    name: Generate CS3 Configs and Deploy
+  build:
+    name: Build Application and Generate CS3
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
         fetch-depth: 0
+        ref: ${{ github.ref }}
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Display repository structure
+      run: |
+        echo "Repository structure:"
+        ls -la
+        echo "Project files:"
+        find . -name "*.py" -o -name "*.js" -o -name "*.json" -o -name "*.md" -o -name "*.txt" | head -20
+
+    - name: Detect project type and build
+      run: |
+        echo "Detecting project type..."
+        
+        # Python projesi kontrolü
+        if [ -f "requirements.txt" ]; then
+          echo "Python project detected"
+          pip install -r requirements.txt
+        elif [ -f "Pipfile" ]; then
+          echo "Pipenv project detected"
+          pip install pipenv
+          pipenv install
+        elif [ -f "setup.py" ]; then
+          echo "Python package detected"
+          pip install -e .
+        fi
+
+        # Node.js projesi kontrolü
+        if [ -f "package.json" ]; then
+          echo "Node.js project detected"
+          npm ci
+          if [ -f "package-lock.json" ] || [ -f "npm-shrinkwrap.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+        fi
+
+        # Go projesi kontrolü
+        if [ -f "go.mod" ]; then
+          echo "Go project detected"
+          go mod download
+          go build -o bin/ ./...
+        fi
 
     - name: Create CS3 configuration files
       run: |
@@ -25,7 +71,7 @@ jobs:
         mkdir -p .cs3
         
         # Main CS3 config
-        cat > .cs3/config.json << 'EOF'
+        cat > .cs3/config.json << EOF
         {
           "project": {
             "name": "UmayTV",
@@ -41,14 +87,13 @@ jobs:
           "cs3_files": [
             "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/core.cs3",
             "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/ui.cs3",
-            "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/player.cs3",
-            "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/analytics.cs3"
+            "https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/player.cs3"
           ]
         }
         EOF
         
         # Core CS3 file
-        cat > .cs3/core.cs3 << 'EOF'
+        cat > .cs3/core.cs3 << EOF
         {
           "name": "umaytv-core",
           "version": "1.0.0",
@@ -64,7 +109,7 @@ jobs:
         EOF
         
         # UI CS3 file
-        cat > .cs3/ui.cs3 << 'EOF'
+        cat > .cs3/ui.cs3 << EOF
         {
           "name": "umaytv-ui",
           "version": "1.0.0",
@@ -80,7 +125,7 @@ jobs:
         EOF
         
         # Player CS3 file
-        cat > .cs3/player.cs3 << 'EOF'
+        cat > .cs3/player.cs3 << EOF
         {
           "name": "umaytv-player",
           "version": "1.0.0",
@@ -96,32 +141,14 @@ jobs:
         }
         EOF
         
-        # Analytics CS3 file
-        cat > .cs3/analytics.cs3 << 'EOF'
-        {
-          "name": "umaytv-analytics",
-          "version": "1.0.0",
-          "type": "analytics",
-          "description": "UmayTV Analytics System",
-          "entry_point": "src/analytics/tracker.js",
-          "dependencies": ["umaytv-core"],
-          "config": {
-            "track_events": true,
-            "user_analytics": true,
-            "performance_metrics": true
-          }
-        }
-        EOF
-        
-        echo "✅ CS3 files created:"
+        echo "CS3 files created successfully"
         ls -la .cs3/
 
     - name: Create plugins.json with CS3 URLs
       run: |
         echo "Creating plugins.json with CS3 file URLs..."
         
-        cat > plugins.json << 'EOF'
-        {
+        PLUGINS_JSON='{
           "name": "UmayTV Plugins",
           "version": "1.0.0",
           "repository": "https://github.com/UmayTrade/UmayTV",
@@ -172,17 +199,16 @@ jobs:
             "cache_plugins": true,
             "log_level": "info"
           }
-        }
-        EOF
+        }'
         
-        echo "✅ plugins.json created"
+        echo "$PLUGINS_JSON" > plugins.json
+        echo "plugins.json created successfully"
 
     - name: Create repo.json with plugins.json URL
       run: |
         echo "Creating repo.json..."
         
-        cat > repo.json << 'EOF'
-        {
+        REPO_JSON='{
           "name": "UmayTV Repository",
           "version": "1.0.0",
           "description": "Official UmayTV plugins and components repository",
@@ -192,72 +218,106 @@ jobs:
           "last_updated": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
           "plugins_count": 4,
           "categories": ["core", "ui", "player", "analytics"]
-        }
-        EOF
+        }'
         
-        echo "✅ repo.json created"
+        echo "$REPO_JSON" > repo.json
+        echo "repo.json created successfully"
+
+    - name: Create basic build structure
+      run: |
+        mkdir -p dist
+        echo "UmayTV Build - $(date)" > dist/build-info.txt
+        echo "Commit: ${{ github.sha }}" >> dist/build-info.txt
+        echo "Branch: ${{ github.ref }}" >> dist/build-info.txt
+        echo "CS3 Files Generated:" >> dist/build-info.txt
+        echo "- .cs3/config.json" >> dist/build-info.txt
+        echo "- .cs3/core.cs3" >> dist/build-info.txt
+        echo "- .cs3/ui.cs3" >> dist/build-info.txt
+        echo "- .cs3/player.cs3" >> dist/build-info.txt
+        echo "Configuration Files:" >> dist/build-info.txt
+        echo "- plugins.json" >> dist/build-info.txt
+        echo "- repo.json" >> dist/build-info.txt
+        
+        # Copy all generated files to dist
+        cp plugins.json dist/
+        cp repo.json dist/
+        cp -r .cs3 dist/
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-output
+        path: |
+          dist/
+          plugins.json
+          repo.json
+          .cs3/
+        retention-days: 7
+
+  validate:
+    name: Validate Repository and CS3 Files
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.ref }}
 
     - name: Validate JSON files
       run: |
-        echo "🔍 Validating JSON files..."
+        echo "Validating JSON files..."
         
-        # Install jq for JSON validation
-        sudo apt-get update && sudo apt-get install -y jq
+        # Validate plugins.json
+        if [ -f "plugins.json" ]; then
+          python -m json.tool plugins.json > /dev/null && echo "✓ plugins.json is valid JSON"
+        fi
         
-        echo "=== Validating plugins.json ==="
-        jq empty plugins.json && echo "✅ plugins.json is valid JSON" || echo "❌ plugins.json is invalid JSON"
+        # Validate repo.json
+        if [ -f "repo.json" ]; then
+          python -m json.tool repo.json > /dev/null && echo "✓ repo.json is valid JSON"
+        fi
         
-        echo "=== Validating repo.json ==="
-        jq empty repo.json && echo "✅ repo.json is valid JSON" || echo "❌ repo.json is invalid JSON"
-        
-        echo "=== Validating CS3 files ==="
-        for cs3_file in .cs3/*.cs3 .cs3/*.json; do
-          if [ -f "$cs3_file" ]; then
-            jq empty "$cs3_file" && echo "✅ $cs3_file is valid JSON" || echo "❌ $cs3_file is invalid JSON"
-          fi
-        done
-
-    - name: Setup Git Identity
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-    - name: Add and commit changes
-      run: |
-        echo "📝 Adding and committing changes..."
-        
-        # Add generated files
-        git add plugins.json repo.json .cs3/
-        
-        # Check if there are changes
-        if ! git diff --staged --quiet; then
-          git commit -m "chore: auto-generate CS3 configs and plugins [skip ci]"
-          echo "✅ Changes committed"
-        else
-          echo "✅ No changes to commit"
+        # Validate CS3 files
+        if [ -d ".cs3" ]; then
+          for cs3_file in .cs3/*.cs3 .cs3/*.json; do
+            if [ -f "$cs3_file" ]; then
+              python -m json.tool "$cs3_file" > /dev/null && echo "✓ $cs3_file is valid JSON"
+            fi
+          done
         fi
 
-    - name: Push changes
+    - name: Validate file structure
       run: |
-        echo "🚀 Pushing changes to repository..."
-        git push origin HEAD:main
-        echo "✅ Changes pushed successfully"
+        echo "=== Generated Files ==="
+        ls -la
+        echo "=== CS3 Directory ==="
+        ls -la .cs3/ || echo "No .cs3 directory"
+        echo "=== JSON Files ==="
+        find . -name "*.json" -type f
 
-    - name: Display final URLs
+  deploy-configs:
+    name: Deploy Configuration Files
+    runs-on: ubuntu-latest
+    needs: [build, validate]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.ref }}
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: build-output
+        path: downloaded-artifacts
+
+    - name: Display deployed files
       run: |
-        echo ""
-        echo "🎉 DEPLOYMENT COMPLETED SUCCESSFULLY!"
-        echo "====================================="
-        echo ""
-        echo "📁 CONFIGURATION FILES:"
-        echo "📄 plugins.json: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/plugins.json"
-        echo "🏠 repo.json: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/repo.json"
-        echo "⚙️  CS3 Config: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/config.json"
-        echo ""
-        echo "🔧 CS3 PLUGIN FILES:"
-        echo "🔧 Core: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/core.cs3"
-        echo "🎨 UI: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/ui.cs3"
-        echo "📺 Player: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/player.cs3"
-        echo "📊 Analytics: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/analytics.cs3"
-        echo ""
-        echo "✅ All configuration files are now live and accessible via GitHub raw URLs!"
+        echo "=== Files ready for deployment ==="
+        find downloaded-artifacts -type f -name "*.json" -o -name "*.cs3"
+        echo "=== CS3 Files and URLs ==="
+        echo "plugins.json URL: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/plugins.json"
+        echo "repo.json URL: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/repo.json"
+        echo "CS3 Config URL: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/config.json"
