@@ -25,36 +25,30 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Detect and list plugins
         id: list_plugins
         run: |
           echo "Detecting CloudStream3 plugins..."
-          # Find directories that contain a "src" folder (common plugin layout).
-          PLUGINS="$(find . -type d -name src -print0 | xargs -0 -n1 dirname | grep -v 'node_modules' || true)"
-          echo "Found plugin paths:"
+          PLUGINS=$(find . -type d -name "src" -exec dirname {} \; | grep -v "node_modules" || true)
+          echo "Found plugins:"
           echo "$PLUGINS"
-          # Export multiline output properly to GITHUB_OUTPUT
-          {
-            echo "plugins<<EOF"
-            echo "$PLUGINS"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+          echo "plugins=$PLUGINS" >> $GITHUB_OUTPUT
 
       - name: Generate .cs3 plugin manifests
+        env:
+          PLUGINS: ${{ steps.list_plugins.outputs.plugins }}
         run: |
           echo "Generating .cs3 manifests..."
           mkdir -p .cs3
           COUNTER=0
-          # iterate over plugin dirs (split by lines)
-          while IFS= read -r plugin_dir; do
+          for plugin_dir in $PLUGINS; do
             [ -z "$plugin_dir" ] && continue
-            # normalize plugin_dir (remove leading ./ if present)
-            plugin_dir="${plugin_dir#./}"
-            name="$(basename "$plugin_dir")"
+            name=$(basename "$plugin_dir")
             cs3_file=".cs3/${name}.cs3"
-            cat > "$cs3_file" << EOF
+            echo "Creating $cs3_file"
+            cat > "$cs3_file" <<EOF
 {
   "name": "${name}",
   "version": "1.0.${COUNTER}",
@@ -62,73 +56,49 @@ jobs:
   "description": "CloudStream3 plugin: ${name}",
   "entry_point": "${plugin_dir}/src",
   "dependencies": [],
-  "config": {
-    "enabled": true
-  }
+  "config": { "enabled": true }
 }
 EOF
-            echo "Created $cs3_file"
             COUNTER=$((COUNTER + 1))
-          done <<< "${{ steps.list_plugins.outputs.plugins }}"
+          done
+          echo "CS3 manifests created:"
+          ls -la .cs3
 
       - name: Create plugins.json
         run: |
-          echo "Generating plugins.json..."
-          jq_plugins="[]"
-
-          # build an array by iterating cs3 files
+          echo "Creating plugins.json..."
+          echo '{ "name": "CloudStream3 Plugins", "version": "1.0.0", "plugins": [' > plugins.json
+          FIRST=true
           for file in .cs3/*.cs3; do
             [ -f "$file" ] || continue
-            name=$(basename "$file" .cs3)
-            url="https://raw.githubusercontent.com/${{ github.repository }}/main/.cs3/${name}.cs3"
-
-            # create plugin object as JSON and append to array using jq (safe)
-            plugin_json=$(jq -n \
-              --arg id "$name" \
-              --arg namev "$name" \
-              --arg desc "CloudStream3 plugin ${name}" \
-              --arg ver "1.0.0" \
-              --arg auth "UmayTrade" \
-              --arg cs3_url "$url" \
-              '{
-                id: $id,
-                name: $namev,
-                description: $desc,
-                version: $ver,
-                author: $auth,
-                cs3_url: $cs3_url,
-                enabled: true,
-                dependencies: []
-              }'
-            )
-            jq_plugins=$(jq -s 'add' <(echo "$jq_plugins") <(echo "[$plugin_json]") 2>/dev/null || jq -n --argjson a "$jq_plugins" --argjson b "[$plugin_json]" '$a + $b')
+            NAME=$(basename "$file" .cs3)
+            URL="https://raw.githubusercontent.com/${{ github.repository }}/main/.cs3/${NAME}.cs3"
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              echo "," >> plugins.json
+            fi
+            cat <<EOF >> plugins.json
+  {
+    "id": "${NAME}",
+    "name": "${NAME}",
+    "version": "1.0.0",
+    "author": "UmayTrade",
+    "description": "CloudStream3 plugin ${NAME}",
+    "cs3_url": "${URL}",
+    "enabled": true,
+    "dependencies": []
+  }
+EOF
           done
-
-          # compose final plugins.json
-          jq -n \
-            --arg name "CloudStream3 Plugins" \
-            --arg ver "1.0.0" \
-            --arg repo "https://github.com/${{ github.repository }}" \
-            --argjson plugins "$jq_plugins" \
-            '{
-              name: $name,
-              version: $ver,
-              repository: $repo,
-              plugins: $plugins,
-              config: {
-                auto_update: true,
-                cache_plugins: true,
-                log_level: "info"
-              }
-            }' > plugins.json
-
+          echo '] }' >> plugins.json
           echo "plugins.json created successfully"
           cat plugins.json
 
       - name: Create repo.json
         run: |
-          echo "Generating repo.json..."
-          cat > repo.json << EOF
+          echo "Creating repo.json..."
+          cat > repo.json <<EOF
 {
   "name": "UmayTrade CS3 Repository",
   "version": "1.0.0",
@@ -144,12 +114,11 @@ EOF
 
       - name: Validate JSON files
         run: |
-          echo "Validating JSON syntax..."
+          echo "Validating JSON files..."
           python -m json.tool plugins.json > /dev/null && echo "✓ plugins.json valid"
           python -m json.tool repo.json > /dev/null && echo "✓ repo.json valid"
-          for cs3 in .cs3/*.cs3; do
-            [ -f "$cs3" ] || continue
-            python -m json.tool "$cs3" > /dev/null && echo "✓ $cs3 valid"
+          for file in .cs3/*.cs3; do
+            python -m json.tool "$file" > /dev/null && echo "✓ $file valid"
           done
 
       - name: Upload build artifacts
@@ -186,8 +155,8 @@ EOF
           if [ -d dist/.cs3 ]; then
             cp -r dist/.cs3/* .cs3/
           fi
-          cp -f dist/plugins.json . || cp -f plugins.json .
-          cp -f dist/repo.json . || cp -f repo.json .
+          cp dist/plugins.json .
+          cp dist/repo.json .
 
       - name: Commit and push updated configs
         run: |
