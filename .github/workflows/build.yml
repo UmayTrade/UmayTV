@@ -8,18 +8,7 @@ permissions:
   contents: write
 
 on:
-  workflow_dispatch: {}
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "**/*.md"
-      - "**/*.yml"
-      - "**/*.png"
-      - "**/*.jpg"
-      - "**/*.m3u"
-      - "**/*.m3u8"
-      - "**/*.py"
+  workflow_dispatch:
 
 jobs:
   build:
@@ -54,18 +43,10 @@ jobs:
         run: |
           set -e
           cd "$GITHUB_WORKSPACE/src"
-
-          # gradlew çalıştırılabilir hale getir
           chmod +x gradlew
-
-          # Plugin'leri derle (CloudStream 3 standardı)
           ./gradlew make makePluginsJson
-
-          # .cs3 dosyalarını kopyala
           mkdir -p "$GITHUB_WORKSPACE/builds"
           find . -type f -name "*.cs3" -exec cp {} "$GITHUB_WORKSPACE/builds/" \; || true
-
-          # plugins.json varsa onu da al
           if [ -f build/plugins.json ]; then
             cp build/plugins.json "$GITHUB_WORKSPACE/builds/"
           fi
@@ -85,15 +66,9 @@ jobs:
           echo "CloudStream 3 Eklenti Linkleri" > link.txt
           echo "=============================" >> link.txt
           echo "" >> link.txt
-
-          # builds dalındaki .cs3 linklerini oluştur
           for f in $(cd "$GITHUB_WORKSPACE/builds" && ls *.cs3 2>/dev/null); do
             echo "https://raw.githubusercontent.com/$REPO/builds/$f" >> link.txt
           done
-
-          cat link.txt
-
-          # main dalına kaydet
           cd "$GITHUB_WORKSPACE/src"
           git fetch origin main
           git checkout main
