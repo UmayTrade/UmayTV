@@ -1,101 +1,16 @@
-name: CloudStream Derleyici
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: write
+name: CloudStream Derleyici Başlatıcı
 
 on:
-  workflow_dispatch: {}
-  push:
-    branches:
-      - master
-    paths-ignore:
-      - "**/*.md"
-      - "**/*.yml"
-      - "**/*.jpg"
-      - "**/*.png"
-      - "**/*.py"
-      - "**/*.m3u"
-      - "**/*.m3u8"
+  workflow_dispatch:
 
 jobs:
-  CloudStreamDerleyici:
+  derleyici:
     runs-on: ubuntu-latest
-
     steps:
-      - name: src deposunu çek
-        uses: actions/checkout@v4
+      - name: build.yml workflow’unu tetikle
+        uses: peter-evans/workflow-dispatch@v1
         with:
-          path: src
-
-      - name: builds dalını çek
-        uses: actions/checkout@v4
-        with:
-          ref: builds
-          path: builds
-
-      - name: Eski derlemeleri temizle
-        run: |
-          rm -f "$GITHUB_WORKSPACE/builds/"*.cs3 || true
-
-      - name: JDK 17 ayarla
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Android SDK ayarla
-        uses: android-actions/setup-android@v3
-
-      - name: Gradle önbelleğini temizle
-        run: rm -rf ~/.gradle/caches/ || true
-
-      - name: CloudStream eklentilerini derle (.cs3 üretimi)
-        run: |
-          set -e
-          cd "$GITHUB_WORKSPACE/src"
-          chmod +x gradlew
-          ./gradlew :app:assembleRelease || echo "assembleRelease başarısız - devam ediliyor"
-          ./gradlew make makePluginsJson || echo "make hedefleri başarısız olabilir - .cs3 aranacak"
-          find . -type f -name "*.cs3" -exec cp {} "$GITHUB_WORKSPACE/builds" \; || true
-          if [ -f build/plugins.json ]; then
-            cp build/plugins.json "$GITHUB_WORKSPACE/builds/"
-          fi
-
-      - name: Derlemeleri builds dalına yükle
-        run: |
-          cd "$GITHUB_WORKSPACE/builds"
-          git config user.email "actions@github.com"
-          git config user.name "GitHub Actions"
-          git add .
-          git commit -m "${{ github.sha }} sürümü derlendi (.cs3 oluşturuldu)" || echo "Değişiklik yok"
-          git push origin builds --force || echo "Push başarısız"
-
-      - name: link.txt oluştur ve main dalına yükle
-        run: |
-          # Repo bilgilerini ayarla
-          REPO="${{ github.repository }}"
-          echo "CloudStream .cs3 Linkleri" > link.txt
-          echo "==========================" >> link.txt
-          echo "" >> link.txt
-
-          # builds dalındaki .cs3 dosyalarına ait raw linkleri oluştur
-          for f in $(cd "$GITHUB_WORKSPACE/builds" && ls *.cs3 2>/dev/null); do
-            echo "https://raw.githubusercontent.com/$REPO/builds/$f" >> link.txt
-          done
-
-          cat link.txt
-
-          # main dalını çekip dosyayı güncelle
-          cd "$GITHUB_WORKSPACE/src"
-          git fetch origin main
-          git checkout main
-          cp "$GITHUB_WORKSPACE/link.txt" .
-          git add link.txt
-          git config user.email "actions@github.com"
-          git config user.name "GitHub Actions"
-          git commit -m "Otomatik link.txt güncellendi (${{ github.sha }})" || echo "link.txt değişmedi"
-          git push origin main || echo "Push başarısız"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          workflow: "build.yml"
+          ref: main
