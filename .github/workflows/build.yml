@@ -2,9 +2,13 @@ name: Build CloudStream3 Plugins
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
   pull_request:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 jobs:
@@ -27,86 +31,116 @@ jobs:
         id: list_plugins
         run: |
           echo "Detecting CloudStream3 plugins..."
-          mkdir -p .cs3
-          PLUGINS=$(find . -type d -name "src" -exec dirname {} \; | grep -v "node_modules" || true)
-          echo "Found plugins:"
+          # Find directories that contain a "src" folder (common plugin layout).
+          PLUGINS="$(find . -type d -name src -print0 | xargs -0 -n1 dirname | grep -v 'node_modules' || true)"
+          echo "Found plugin paths:"
           echo "$PLUGINS"
-          echo "plugins<<EOF" >> $GITHUB_OUTPUT
-          echo "$PLUGINS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Export multiline output properly to GITHUB_OUTPUT
+          {
+            echo "plugins<<EOF"
+            echo "$PLUGINS"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Generate .cs3 plugin manifests
         run: |
           echo "Generating .cs3 manifests..."
           mkdir -p .cs3
           COUNTER=0
-          for plugin_dir in ${{ steps.list_plugins.outputs.plugins }}; do
-            [ -d "$plugin_dir" ] || continue
-            name=$(basename "$plugin_dir")
+          # iterate over plugin dirs (split by lines)
+          while IFS= read -r plugin_dir; do
+            [ -z "$plugin_dir" ] && continue
+            # normalize plugin_dir (remove leading ./ if present)
+            plugin_dir="${plugin_dir#./}"
+            name="$(basename "$plugin_dir")"
             cs3_file=".cs3/${name}.cs3"
-
             cat > "$cs3_file" << EOF
-            {
-              "name": "${name}",
-              "version": "1.0.${COUNTER}",
-              "type": "plugin",
-              "description": "CloudStream3 plugin: ${name}",
-              "entry_point": "${plugin_dir}/src/main/kotlin/",
-              "dependencies": [],
-              "config": {
-                "enabled": true
-              }
-            }
-            EOF
+{
+  "name": "${name}",
+  "version": "1.0.${COUNTER}",
+  "type": "plugin",
+  "description": "CloudStream3 plugin: ${name}",
+  "entry_point": "${plugin_dir}/src",
+  "dependencies": [],
+  "config": {
+    "enabled": true
+  }
+}
+EOF
             echo "Created $cs3_file"
             COUNTER=$((COUNTER + 1))
-          done
+          done <<< "${{ steps.list_plugins.outputs.plugins }}"
 
       - name: Create plugins.json
         run: |
           echo "Generating plugins.json..."
-          echo '{ "name": "CloudStream3 Plugins", "version": "1.0.0", "plugins": [' > plugins.json
-          first=true
+          jq_plugins="[]"
+
+          # build an array by iterating cs3 files
           for file in .cs3/*.cs3; do
             [ -f "$file" ] || continue
             name=$(basename "$file" .cs3)
             url="https://raw.githubusercontent.com/${{ github.repository }}/main/.cs3/${name}.cs3"
-            if [ "$first" = true ]; then
-              first=false
-            else
-              echo "," >> plugins.json
-            fi
-            cat << EOF >> plugins.json
-            {
-              "id": "${name}",
-              "name": "${name}",
-              "description": "CloudStream3 plugin ${name}",
-              "version": "1.0.0",
-              "author": "UmayTrade",
-              "cs3_url": "${url}",
-              "enabled": true,
-              "dependencies": []
-            }
-EOF
+
+            # create plugin object as JSON and append to array using jq (safe)
+            plugin_json=$(jq -n \
+              --arg id "$name" \
+              --arg namev "$name" \
+              --arg desc "CloudStream3 plugin ${name}" \
+              --arg ver "1.0.0" \
+              --arg auth "UmayTrade" \
+              --arg cs3_url "$url" \
+              '{
+                id: $id,
+                name: $namev,
+                description: $desc,
+                version: $ver,
+                author: $auth,
+                cs3_url: $cs3_url,
+                enabled: true,
+                dependencies: []
+              }'
+            )
+            jq_plugins=$(jq -s 'add' <(echo "$jq_plugins") <(echo "[$plugin_json]") 2>/dev/null || jq -n --argjson a "$jq_plugins" --argjson b "[$plugin_json]" '$a + $b')
           done
-          echo '] }' >> plugins.json
+
+          # compose final plugins.json
+          jq -n \
+            --arg name "CloudStream3 Plugins" \
+            --arg ver "1.0.0" \
+            --arg repo "https://github.com/${{ github.repository }}" \
+            --argjson plugins "$jq_plugins" \
+            '{
+              name: $name,
+              version: $ver,
+              repository: $repo,
+              plugins: $plugins,
+              config: {
+                auto_update: true,
+                cache_plugins: true,
+                log_level: "info"
+              }
+            }' > plugins.json
+
           echo "plugins.json created successfully"
+          cat plugins.json
 
       - name: Create repo.json
         run: |
           echo "Generating repo.json..."
           cat > repo.json << EOF
-          {
-            "name": "UmayTrade CS3 Repository",
-            "version": "1.0.0",
-            "description": "Official CloudStream3 Plugin Repository",
-            "url": "https://github.com/${{ github.repository }}",
-            "plugins_config": "https://raw.githubusercontent.com/${{ github.repository }}/main/plugins.json",
-            "cs3_config": "https://raw.githubusercontent.com/${{ github.repository }}/main/.cs3/",
-            "last_updated": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          }
-          EOF
+{
+  "name": "UmayTrade CS3 Repository",
+  "version": "1.0.0",
+  "description": "Official CloudStream3 Plugin Repository",
+  "url": "https://github.com/${{ github.repository }}",
+  "plugins_config": "https://raw.githubusercontent.com/${{ github.repository }}/main/plugins.json",
+  "cs3_config": "https://raw.githubusercontent.com/${{ github.repository }}/main/.cs3/",
+  "last_updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
           echo "repo.json created successfully"
+          cat repo.json
 
       - name: Validate JSON files
         run: |
@@ -114,6 +148,7 @@ EOF
           python -m json.tool plugins.json > /dev/null && echo "✓ plugins.json valid"
           python -m json.tool repo.json > /dev/null && echo "✓ repo.json valid"
           for cs3 in .cs3/*.cs3; do
+            [ -f "$cs3" ] || continue
             python -m json.tool "$cs3" > /dev/null && echo "✓ $cs3 valid"
           done
 
@@ -130,12 +165,14 @@ EOF
   deploy:
     name: Deploy CS3 Files to Main
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: build
     if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -145,14 +182,21 @@ EOF
 
       - name: Copy artifacts into repo
         run: |
-          cp -r dist/.cs3 . || mkdir -p .cs3 && cp -r dist/.cs3/. .cs3/
-          cp dist/plugins.json .
-          cp dist/repo.json .
+          mkdir -p .cs3
+          if [ -d dist/.cs3 ]; then
+            cp -r dist/.cs3/* .cs3/
+          fi
+          cp -f dist/plugins.json . || cp -f plugins.json .
+          cp -f dist/repo.json . || cp -f repo.json .
 
       - name: Commit and push updated configs
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add .cs3 plugins.json repo.json
-          git commit -m "Auto-update CS3 manifests ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))" || echo "No changes"
-          git push origin main
+          git add .cs3 plugins.json repo.json || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Auto-update CS3 manifests ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+            git push origin main
+          fi
