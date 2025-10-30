@@ -1,20 +1,22 @@
-name: Build and Deploy
+name: Generate and Deploy CS3 Configs
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
 
 jobs:
-  generate-configs:
-    name: Generate CS3 Configs
+  generate-and-deploy:
+    name: Generate CS3 Configs and Deploy
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
+        token: ${{ secrets.GITHUB_TOKEN }}
         fetch-depth: 0
 
     - name: Create CS3 configuration files
@@ -111,8 +113,15 @@ jobs:
         }
         EOF
         
-        echo "✅ CS3 files created successfully"
+        echo "✅ CS3 files created:"
         ls -la .cs3/
+        echo ""
+        echo "📄 CS3 File Contents:"
+        for file in .cs3/*; do
+          echo "=== $(basename $file) ==="
+          cat "$file"
+          echo ""
+        done
 
     - name: Create plugins.json with CS3 URLs
       run: |
@@ -173,7 +182,8 @@ jobs:
         }
         EOF
         
-        echo "✅ plugins.json created successfully"
+        echo "✅ plugins.json created:"
+        cat plugins.json
 
     - name: Create repo.json with plugins.json URL
       run: |
@@ -193,179 +203,68 @@ jobs:
         }
         EOF
         
-        echo "✅ repo.json created successfully"
-
-    - name: Verify all files exist
-      run: |
-        echo "=== Verifying generated files ==="
-        echo "Current directory: $(pwd)"
-        ls -la
-        
-        echo "=== CS3 files ==="
-        ls -la .cs3/
-        
-        echo "=== JSON files ==="
-        ls -la *.json
-        
-        # Count files
-        echo "CS3 files count: $(ls -1 .cs3/ | wc -l)"
-        echo "JSON files count: $(ls -1 *.json 2>/dev/null | wc -l || echo 0)"
-
-    - name: Upload CS3 files artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: cs3-files
-        path: .cs3/
-        retention-days: 7
-
-    - name: Upload JSON files artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: json-configs
-        path: |
-          plugins.json
-          repo.json
-        retention-days: 7
-
-  validate:
-    name: Validate Files
-    runs-on: ubuntu-latest
-    needs: generate-configs
-    
-    steps:
-    - name: Download CS3 files
-      uses: actions/download-artifact@v4
-      with:
-        name: cs3-files
-        path: .cs3
-
-    - name: Download JSON configs
-      uses: actions/download-artifact@v4
-      with:
-        name: json-configs
-        path: ./
-
-    - name: Verify downloaded files
-      run: |
-        echo "=== Downloaded files structure ==="
-        ls -la
-        echo "=== CS3 files ==="
-        ls -la .cs3/ || echo "CS3 directory not found"
-        
-        # Check specific files
-        [ -f "plugins.json" ] && echo "✅ plugins.json exists" || echo "❌ plugins.json missing"
-        [ -f "repo.json" ] && echo "✅ repo.json exists" || echo "❌ repo.json missing"
-        [ -d ".cs3" ] && echo "✅ .cs3 directory exists" || echo "❌ .cs3 directory missing"
+        echo "✅ repo.json created:"
+        cat repo.json
 
     - name: Validate JSON files
       run: |
-        echo "Validating JSON files..."
+        echo "🔍 Validating JSON files..."
         
         # Install jq for JSON validation
         sudo apt-get update && sudo apt-get install -y jq
         
-        # Validate plugins.json
-        if [ -f "plugins.json" ]; then
-          jq empty plugins.json && echo "✅ plugins.json is valid JSON" || echo "❌ plugins.json is invalid JSON"
-        else
-          echo "❌ plugins.json not found"
-        fi
+        echo "=== Validating plugins.json ==="
+        jq empty plugins.json && echo "✅ plugins.json is valid JSON" || echo "❌ plugins.json is invalid JSON"
         
-        # Validate repo.json
-        if [ -f "repo.json" ]; then
-          jq empty repo.json && echo "✅ repo.json is valid JSON" || echo "❌ repo.json is invalid JSON"
-        else
-          echo "❌ repo.json not found"
-        fi
+        echo "=== Validating repo.json ==="
+        jq empty repo.json && echo "✅ repo.json is valid JSON" || echo "❌ repo.json is invalid JSON"
         
-        # Validate CS3 files
-        if [ -d ".cs3" ]; then
-          for cs3_file in .cs3/*.cs3 .cs3/*.json; do
-            if [ -f "$cs3_file" ]; then
-              jq empty "$cs3_file" && echo "✅ $cs3_file is valid JSON" || echo "❌ $cs3_file is invalid JSON"
-            fi
-          done
-        else
-          echo "❌ .cs3 directory not found"
-        fi
-
-  deploy:
-    name: Deploy Configuration Files
-    runs-on: ubuntu-latest
-    needs: [generate-configs, validate]
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Download CS3 files
-      uses: actions/download-artifact@v4
-      with:
-        name: cs3-files
-        path: .cs3
-
-    - name: Download JSON configs
-      uses: actions/download-artifact@v4
-      with:
-        name: json-configs
-        path: ./
-
-    - name: Verify all files before commit
-      run: |
-        echo "=== Files ready for commit ==="
-        ls -la
-        echo "=== CS3 files ==="
-        ls -la .cs3/
-        
-        # Verify we have all required files
-        REQUIRED_FILES=("plugins.json" "repo.json" ".cs3/config.json" ".cs3/core.cs3" ".cs3/ui.cs3" ".cs3/player.cs3" ".cs3/analytics.cs3")
-        for file in "${REQUIRED_FILES[@]}"; do
-          if [ -f "$file" ]; then
-            echo "✅ $file exists"
-          else
-            echo "❌ $file missing"
+        echo "=== Validating CS3 files ==="
+        for cs3_file in .cs3/*.cs3 .cs3/*.json; do
+          if [ -f "$cs3_file" ]; then
+            jq empty "$cs3_file" && echo "✅ $cs3_file is valid JSON" || echo "❌ $cs3_file is invalid JSON"
           fi
         done
+
+    - name: Verify all generated files
+      run: |
+        echo "📁 Verifying all generated files..."
+        echo "=== Current directory structure ==="
+        ls -la
+        echo ""
+        echo "=== CS3 directory ==="
+        ls -la .cs3/
+        echo ""
+        echo "=== File counts ==="
+        echo "CS3 files: $(find .cs3 -type f | wc -l)"
+        echo "JSON files: $(find . -maxdepth 1 -name "*.json" -type f | wc -l)"
 
     - name: Setup Git Identity
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-    - name: Add generated files to git
+    - name: Check for changes
+      id: check-changes
       run: |
-        echo "Adding generated files to git..."
-        
-        # Check current git status
-        echo "=== Current git status ==="
-        git status --porcelain
-        
-        # Add all generated files
+        echo "Checking for changes to commit..."
         git add plugins.json repo.json .cs3/
         
-        echo "=== Files after git add ==="
-        git status --porcelain
-
-    - name: Commit files
-      run: |
-        echo "Committing generated files..."
-        
-        # Check if there are changes to commit
         if git diff --staged --quiet; then
-          echo "✅ No changes to commit - files are up to date"
+          echo "changes=false" >> $GITHUB_OUTPUT
+          echo "✅ No changes to commit"
         else
-          git commit -m "chore: auto-generate CS3 configs and plugins [skip ci]"
-          echo "✅ Files committed successfully"
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "📝 Changes detected, ready to commit"
         fi
 
-    - name: Push changes
+    - name: Commit and push changes
+      if: steps.check-changes.outputs.changes == 'true'
       run: |
-        echo "Pushing changes to repository..."
+        echo "🚀 Committing and pushing changes..."
+        git commit -m "chore: auto-generate CS3 configs and plugins [skip ci]"
         git push
-        echo "✅ Changes pushed successfully"
+        echo "✅ Changes committed and pushed successfully"
 
     - name: Display final URLs
       run: |
@@ -384,4 +283,4 @@ jobs:
         echo "📺 Player: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/player.cs3"
         echo "📊 Analytics: https://raw.githubusercontent.com/UmayTrade/UmayTV/main/.cs3/analytics.cs3"
         echo ""
-        echo "✅ All configuration files are now live and accessible!"
+        echo "✅ All configuration files are now live and accessible via GitHub raw URLs!"
