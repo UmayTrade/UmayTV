@@ -35,16 +35,16 @@ jobs:
           echo "❓ Bilinmeyen format"
         fi
 
-    - name: Create optimized DMAX plugin based on analysis
+    - name: Create optimized DMAX plugin
       run: |
         echo "🎯 Analize dayalı DMAX plugin oluşturuluyor..."
         
-        # Referans dosyayı inceleyerek benzer yapıda plugin oluştur
+        # Referans dosya formatını kontrol et
         if grep -q "package" reference_dmax.cs3; then
           echo "Kotlin tabanlı plugin oluşturuluyor..."
           mkdir -p plugins/dmax
           
-          # Kotlin plugin dosyası
+          # Kotlin plugin dosyası oluştur
           cat > plugins/dmax/DmaxProvider.kt << 'EOF'
 package com.umaytv.plugins.dmax
 
@@ -68,7 +68,6 @@ class DmaxProvider : MainAPI() {
     override val supportedTypes = setOf(TvType.TvSeries, TvType.Movie)
     override val lang = "tr"
 
-    // Main page sections
     override val mainPage = mainPageOf(
         "$mainUrl/programlar" to "Programlar",
         "$mainUrl/kesfet" to "Keşfet",
@@ -83,7 +82,6 @@ class DmaxProvider : MainAPI() {
         val doc = app.get(request.data).document
         val items = ArrayList<HomePageList>()
 
-        // Program listesi
         val programs = doc.select("div.program-item, div.card, article").mapNotNull { element ->
             val title = element.selectFirst("h3, h4, .title")?.text()?.trim() ?: return@mapNotNull null
             val href = element.selectFirst("a")?.attr("href")?.let { url ->
@@ -139,7 +137,6 @@ class DmaxProvider : MainAPI() {
             if (src.startsWith("http")) src else mainUrl + src
         } ?: ""
 
-        // Bölümleri bul
         val episodes = doc.select("div.episode-item, li.episode").mapNotNull { episode ->
             val epTitle = episode.selectFirst("h3, .episode-title")?.text()?.trim() ?: return@mapNotNull null
             val epUrl = episode.selectFirst("a")?.attr("href")?.let { href ->
@@ -169,7 +166,6 @@ class DmaxProvider : MainAPI() {
         return try {
             val doc = app.get(data).document
             
-            // Video URL'lerini bul
             val videoSources = doc.select("video source, iframe[src*='video']")
             var foundLinks = false
 
@@ -202,7 +198,7 @@ EOF
           echo "XML tabanlı plugin oluşturuluyor..."
           mkdir -p plugins/dmax
           
-          # XML manifest dosyası
+          # XML manifest dosyası oluştur
           cat > plugins/dmax/dmax.cs3 << 'EOF'
 <?xml version="1.0" encoding="utf-8"?>
 <cloudstream-plugin>
@@ -255,15 +251,14 @@ EOF
 
     - name: Create plugin metadata
       run: |
-        # Plugin bilgi dosyası oluştur
         cat > plugins/dmax/README.md << 'EOF'
 # DMAX Türkiye - CloudStream 3 Plugin
 
 ## Özellikler
-- 🎬 DMAX Türkiye içerikleri
-- 📺 Programlar, diziler, belgeseller
-- 🔍 Gelişmiş arama
-- 🏷️ Türkçe dil desteği
+- DMAX Türkiye içerikleri
+- Programlar, diziler, belgeseller
+- Gelişmiş arama
+- Türkçe dil desteği
 
 ## Kurulum
 1. CloudStream 3 uygulamasını açın
@@ -278,8 +273,6 @@ EOF
     - name: Validate and package plugin
       run: |
         echo "🔧 Plugin doğrulama ve paketleme..."
-        
-        # Dosya kontrolleri
         echo "📁 Oluşturulan dosyalar:"
         find plugins/dmax -type f -name "*.*" | while read file; do
           size=$(wc -c < "$file")
@@ -308,4 +301,3 @@ EOF
         echo "### 🎯 Özellikler" >> $GITHUB_STEP_SUMMARY
         echo "- Programlar, diziler, belgeseller" >> $GITHUB_STEP_SUMMARY
         echo "- HD video desteği" >> $GITHUB_STEP_SUMMARY
-        echo "- Responsive tasarım" >> $GITHUB_STEP_SUMMARY
