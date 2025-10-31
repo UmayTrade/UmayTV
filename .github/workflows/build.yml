@@ -1,80 +1,48 @@
-name: CloudStream 3 Plugin Derleyici
+name: CS3 Provider Build & Release
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: write
-
+# Hangi olaylarda çalışacağını belirler
 on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  # Manuel çalıştırma imkanı ekler
   workflow_dispatch:
 
 jobs:
   build:
-    name: CloudStream 3 Eklenti Derle
     runs-on: ubuntu-latest
 
     steps:
-      - name: Kaynak deposunu çek
+      - name: Kodu İndir (Checkout Repository)
         uses: actions/checkout@v4
+        
+      # Providerları derlemek için Node.js gereklidir
+      - name: Node.js Ortamını Kur
+        uses: actions/setup-node@v4
         with:
-          path: src
+          node-version: '20' # CS3 build sistemlerinin önerdiği bir Node sürümü
+          cache: 'npm' # Bağımlılıkları önbelleğe alır
+          
+      - name: Bağımlılıkları Yükle (Install Dependencies)
+        # package.json dosyanızda tanımlı olan bundler/SDK bağımlılıklarını yükler
+        run: npm install
 
-      - name: Builds dalını çek
-        uses: actions/checkout@v4
+      - name: CS3 Sağlayıcılarını Derle (Build Providers)
+        # Bu adımın, repository'de tanımlı bir "build:all" script'i olduğunu varsayarız.
+        # Bu script, dört klasördeki (belgeselx, dmax, dizipal, tlc) kaynakları alıp
+        # karşılık gelen .cs3 dosyalarını (belgeselx.cs3, dmax.cs3, vb.) oluşturmalıdır.
+        run: npm run build:all
+
+      # Derlenen .cs3 dosyalarını artifacts olarak kaydeder (İsteğe bağlı, ancak iyi bir uygulamadır)
+      - name: Derlenmiş Dosyaları Artifacts Olarak Yükle
+        uses: actions/upload-artifact@v4
         with:
-          ref: builds
-          path: builds
-
-      - name: JDK 17 kur
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Android SDK kur
-        uses: android-actions/setup-android@v3
-
-      - name: Gradle önbelleğini temizle
-        run: rm -rf ~/.gradle/caches/ || true
-
-      - name: Eklentileri derle (.cs3 oluştur)
-        run: |
-          set -e
-          cd "$GITHUB_WORKSPACE/src"
-          chmod +x gradlew
-          ./gradlew make makePluginsJson
-          mkdir -p "$GITHUB_WORKSPACE/builds"
-          find . -type f -name "*.cs3" -exec cp {} "$GITHUB_WORKSPACE/builds/" \; || true
-          if [ -f build/plugins.json ]; then
-            cp build/plugins.json "$GITHUB_WORKSPACE/builds/"
-          fi
-
-      - name: Builds dalına yükle
-        run: |
-          cd "$GITHUB_WORKSPACE/builds"
-          git config user.email "actions@github.com"
-          git config user.name "GitHub Actions"
-          git add .
-          git commit -m "Yeni .cs3 eklentileri oluşturuldu (${{ github.sha }})" || echo "Değişiklik yok"
-          git push origin builds --force || echo "Push başarısız"
-
-      - name: link.txt oluştur ve main dalına yükle
-        run: |
-          REPO="${{ github.repository }}"
-          echo "CloudStream 3 Eklenti Linkleri" > link.txt
-          echo "=============================" >> link.txt
-          echo "" >> link.txt
-          for f in $(cd "$GITHUB_WORKSPACE/builds" && ls *.cs3 2>/dev/null); do
-            echo "https://raw.githubusercontent.com/$REPO/builds/$f" >> link.txt
-          done
-          cd "$GITHUB_WORKSPACE/src"
-          git fetch origin main
-          git checkout main
-          cp "$GITHUB_WORKSPACE/link.txt" .
-          git add link.txt
-          git config user.email "actions@github.com"
-          git config user.name "GitHub Actions"
-          git commit -m "link.txt güncellendi (${{ github.sha }})" || echo "Değişiklik yok"
-          git push origin main || echo "Push başarısız"
+          name: umaytv-cs3-providers
+          # Build script'inin tüm .cs3 dosyalarını bu dizine çıkardığını varsayarız
+          path: build/*.cs3 
+          retention-days: 5
