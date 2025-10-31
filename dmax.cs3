@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<plugin>
+    <id>com.umaytv.dmax</id>
+    <name>DMAX Türkiye</name>
+    <version>1.0.0</version>
+    <versionCode>1</versionCode>
+    <description>DMAX Türkiye içerikleri için CloudStream 3 eklentisi</description>
+    <author>UmayTV</author>
+    <website>https://github.com/UmayTrade/UmayTV</website>
+    
+    <baseUrl>https://www.dmax.com.tr</baseUrl>
+    <lang>tr</lang>
+    
+    <permissions>
+        <permission>INTERNET</permission>
+        <permission>ACCESS_NETWORK_STATE</permission>
+    </permissions>
+    
+    <providers>
+        <provider>
+            <name>DMAX Movies</name>
+            <type>movie</type>
+            <url>https://www.dmax.com.tr/filmler</url>
+        </provider>
+        <provider>
+            <name>DMAX Series</name>
+            <type>series</type>
+            <url>https://www.dmax.com.tr/diziler</url>
+        </provider>
+        <provider>
+            <name>DMAX Documentaries</name>
+            <type>documentary</type>
+            <url>https://www.dmax.com.tr/belgeseller</url>
+        </provider>
+    </providers>
+    
+    <features>
+        <feature>HD Quality</feature>
+        <feature>Turkish Content</feature>
+        <feature>Multiple Categories</feature>
+        <feature>Search Function</feature>
+    </features>
+    
+    <buildInfo>
+        <source>DMax/</source>
+        <buildDate>$(date +'%Y-%m-%d %H:%M:%S')</buildDate>
+        <commitHash>acd76e2f002c889ea466aeb57ced6933a3bf5eb6</commitHash>
+    </buildInfo>
+</plugin>
