@@ -35,16 +35,28 @@ jobs:
           echo "❓ Bilinmeyen format"
         fi
 
-    - name: Create optimized DMAX plugin
+    - name: Check file format and create plugin
       run: |
-        echo "🎯 Analize dayalı DMAX plugin oluşturuluyor..."
+        echo "🎯 Dosya formatı kontrol ediliyor..."
         
-        # Referans dosya formatını kontrol et
+        # Önce formatı bir değişkene kaydet
         if grep -q "package" reference_dmax.cs3; then
-          echo "Kotlin tabanlı plugin oluşturuluyor..."
+          echo "Kotlin formatı tespit edildi"
+          PLUGIN_FORMAT="kotlin"
+        else
+          echo "XML formatı tespit edildi (veya diğer)"
+          PLUGIN_FORMAT="xml"
+        fi
+        
+        echo "Seçilen format: $PLUGIN_FORMAT"
+
+    - name: Create Kotlin plugin
+      if: ${{ success() }}  # Önceki step başarılı olduysa
+      run: |
+        if grep -q "package" reference_dmax.cs3; then
+          echo "🛠️ Kotlin tabanlı plugin oluşturuluyor..."
           mkdir -p plugins/dmax
           
-          # Kotlin plugin dosyası oluştur
           cat > plugins/dmax/DmaxProvider.kt << 'EOF'
 package com.umaytv.plugins.dmax
 
@@ -193,12 +205,17 @@ class DmaxProvider : MainAPI() {
     }
 }
 EOF
-
         else
-          echo "XML tabanlı plugin oluşturuluyor..."
+          echo "⏩ Kotlin formatı bulunamadı, XML plugin oluşturulacak"
+        fi
+
+    - name: Create XML plugin
+      if: ${{ success() }}
+      run: |
+        if ! grep -q "package" reference_dmax.cs3; then
+          echo "🛠️ XML tabanlı plugin oluşturuluyor..."
           mkdir -p plugins/dmax
           
-          # XML manifest dosyası oluştur
           cat > plugins/dmax/dmax.cs3 << 'EOF'
 <?xml version="1.0" encoding="utf-8"?>
 <cloudstream-plugin>
@@ -207,9 +224,7 @@ EOF
     <version>1.2.0</version>
     <versionCode>20</versionCode>
     
-    <description>
-        DMAX Türkiye için CloudStream 3 eklentisi - Programlar, diziler ve belgeseller
-    </description>
+    <description>DMAX Türkiye için CloudStream 3 eklentisi</description>
     
     <author>UmayTV</author>
     <website>https://github.com/UmayTrade/UmayTV</website>
@@ -225,7 +240,6 @@ EOF
         <feature>HD Streaming</feature>
         <feature>Turkish Content</feature>
         <feature>Search Support</feature>
-        <feature>Episode Tracking</feature>
     </features>
     
     <provider-config>
@@ -233,31 +247,27 @@ EOF
             <page name="Programlar" url="/programlar"/>
             <page name="Diziler" url="/diziler"/> 
             <page name="Belgeseller" url="/belgeseller"/>
-            <page name="Keşfet" url="/kesfet"/>
         </main-page>
         
         <search-url>/arama?q={query}</search-url>
         <supported-types>series,movie</supported-types>
     </provider-config>
-    
-    <build-info>
-        <based-on>nikyokki/nik-cloudstream</based-on>
-        <optimized-for>dmax.com.tr</optimized-for>
-        <build-date>$(date +'%Y-%m-%d')</build-date>
-    </build-info>
 </cloudstream-plugin>
 EOF
+        else
+          echo "⏩ XML plugin gerekli değil, Kotlin kullanılıyor"
         fi
 
     - name: Create plugin metadata
       run: |
+        echo "📄 Plugin metadata oluşturuluyor..."
+        mkdir -p plugins/dmax
         cat > plugins/dmax/README.md << 'EOF'
 # DMAX Türkiye - CloudStream 3 Plugin
 
 ## Özellikler
 - DMAX Türkiye içerikleri
 - Programlar, diziler, belgeseller
-- Gelişmiş arama
 - Türkçe dil desteği
 
 ## Kurulum
@@ -265,9 +275,6 @@ EOF
 2. Ayarlar → Eklentiler → Plugin Yükle
 3. DMAX plugin dosyasını seçin
 4. Eklentiyi etkinleştirin
-
-## Referans
-Bu plugin, nikyokki/nik-cloudstream referans alınarak geliştirilmiştir.
 EOF
 
     - name: Validate and package plugin
@@ -291,13 +298,12 @@ EOF
 
     - name: Create build summary
       run: |
-        echo "## DMAX CloudStream 3 Plugin - Optimized Build" >> $GITHUB_STEP_SUMMARY
+        echo "## DMAX CloudStream 3 Plugin - Build Complete" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📦 Oluşturulan Plugin" >> $GITHUB_STEP_SUMMARY
-        echo "- **DMAX Türkiye** özelleştirmeli" >> $GITHUB_STEP_SUMMARY
+        echo "- DMAX Türkiye özelleştirmeli" >> $GITHUB_STEP_SUMMARY
         echo "- Türkçe dil desteği" >> $GITHUB_STEP_SUMMARY
-        echo "- Gelişmiş arama ve kategoriler" >> $GITHUB_STEP_SUMMARY
+        echo "- Çoklu içerik kategorileri" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🎯 Özellikler" >> $GITHUB_STEP_SUMMARY
-        echo "- Programlar, diziler, belgeseller" >> $GITHUB_STEP_SUMMARY
-        echo "- HD video desteği" >> $GITHUB_STEP_SUMMARY
+        echo "### 📥 İndirme" >> $GITHUB_STEP_SUMMARY
+        echo "Artifacts bölümünden plugin dosyalarını indirebilirsiniz." >> $GITHUB_STEP_SUMMARY
