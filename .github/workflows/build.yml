@@ -1,48 +1,30 @@
-name: CS3 Provider Build & Release
+name: Build and Test
 
-# Hangi olaylarda çalışacağını belirler
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
-      - master
-  # Manuel çalıştırma imkanı ekler
-  workflow_dispatch:
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Kodu İndir (Checkout Repository)
-        uses: actions/checkout@v4
-        
-      # Providerları derlemek için Node.js gereklidir
-      - name: Node.js Ortamını Kur
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20' # CS3 build sistemlerinin önerdiği bir Node sürümü
-          cache: 'npm' # Bağımlılıkları önbelleğe alır
-          
-      - name: Bağımlılıkları Yükle (Install Dependencies)
-        # package.json dosyanızda tanımlı olan bundler/SDK bağımlılıklarını yükler
-        run: npm install
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: CS3 Sağlayıcılarını Derle (Build Providers)
-        # Bu adımın, repository'de tanımlı bir "build:all" script'i olduğunu varsayarız.
-        # Bu script, dört klasördeki (belgeselx, dmax, dizipal, tlc) kaynakları alıp
-        # karşılık gelen .cs3 dosyalarını (belgeselx.cs3, dmax.cs3, vb.) oluşturmalıdır.
-        run: npm run build:all
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
 
-      # Derlenen .cs3 dosyalarını artifacts olarak kaydeder (İsteğe bağlı, ancak iyi bir uygulamadır)
-      - name: Derlenmiş Dosyaları Artifacts Olarak Yükle
-        uses: actions/upload-artifact@v4
-        with:
-          name: umaytv-cs3-providers
-          # Build script'inin tüm .cs3 dosyalarını bu dizine çıkardığını varsayarız
-          path: build/*.cs3 
-          retention-days: 5
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build project
+      run: npm run build
+
+    - name: Run tests
+      run: npm test
