@@ -1,2 +1,21 @@
-# package.json oluştur
-npm init -y
+{
+  "name": "umay-tv",
+  "version": "1.0.0",
+  "description": "Umay TV Project",
+  "main": "index.js",
+  "scripts": {
+    "build": "echo 'Build process'",
+    "test": "echo 'Running tests'",
+    "dev": "echo 'Development mode'"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jest": "^29.0.0"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
