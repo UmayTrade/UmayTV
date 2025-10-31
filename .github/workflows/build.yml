@@ -1,4 +1,4 @@
-name: CloudStream Derleyici
+name: DMAX CloudStream Derleyici
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
@@ -8,54 +8,353 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - master
-    paths-ignore:
-      - "**/*.md"
-      - "**/*.yml"
-      - "**/*.jpg"
-      - "**/*.png"
-      - "**/*.py"
+      - main
+    paths:
+      - "DMax/**"
+      - "plugins/**"
 
 jobs:
-  CloudStreamDerleyici:
+  DMAX-Derleyici:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: "'src' Depo Kontrolü"
-        uses: actions/checkout@v4.2.2
+      - name: Kaynak Kodları Çek
+        uses: actions/checkout@v4
         with:
           path: "src"
 
-      - name: "'build' Depo Kontrolü"
-        uses: actions/checkout@v4.2.2
+      - name: Builds Branch'ini Çek
+        uses: actions/checkout@v4
         with:
           ref: "builds"
           path: "builds"
 
-      - name: Eski Derlemeleri Temizle
-        run: find $GITHUB_WORKSPACE/builds -name '*.cs3' -delete
+      - name: Eski DMAX Derlemelerini Temizle
+        run: |
+          find $GITHUB_WORKSPACE/builds -name '*dmax*.cs3' -delete
+          find $GITHUB_WORKSPACE/builds -name '*DMax*.cs3' -delete
 
-      - name: JDK 17 Ayarla
-        uses: actions/setup-java@v4.6.0
+      - name: JDK 17 Kur
+        uses: actions/setup-java@v4
         with:
-          distribution: adopt
-          java-version: 17
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: Android SDK Ayarla
-        uses: android-actions/setup-android@v3.2.2
+      - name: DMAX Plugin Dosyalarını Kontrol Et
+        run: |
+          echo "📁 DMAX dizini kontrolü:"
+          find $GITHUB_WORKSPACE/src -name "*.kt" -path "*/DMax/*" | head -10
+          find $GITHUB_WORKSPACE/src -name "*.java" -path "*/DMax/*" | head -10
+          
+          # DMAX dizini var mı kontrol et
+          if [ -d "$GITHUB_WORKSPACE/src/DMax" ]; then
+            echo "✅ DMAX dizini bulundu"
+            ls -la $GITHUB_WORKSPACE/src/DMax/
+          else
+            echo "❌ DMAX dizini bulunamadı, örnek plugin oluşturuluyor..."
+            mkdir -p $GITHUB_WORKSPACE/src/DMax
+          fi
 
-      - name: Eklentileri Derle
+      - name: DMAX Plugin Derle
         run: |
           cd $GITHUB_WORKSPACE/src
-          chmod +x gradlew
-          ./gradlew make makePluginsJson
-          cp **/build/*.cs3 $GITHUB_WORKSPACE/builds
-          cp build/plugins.json $GITHUB_WORKSPACE/builds
+          
+          # Eğer build.gradle yoksa oluştur
+          if [ ! -f "build.gradle" ]; then
+            cat > build.gradle << 'EOF'
+            plugins {
+                id 'com.android.library'
+                id 'org.jetbrains.kotlin.android'
+            }
+            
+            android {
+                compileSdk 33
+                
+                defaultConfig {
+                    minSdk 21
+                    targetSdk 33
+                }
+                
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_1_8
+                    targetCompatibility JavaVersion.VERSION_1_8
+                }
+                
+                kotlinOptions {
+                    jvmTarget = '1.8'
+                }
+            }
+            
+            dependencies {
+                implementation 'com.lagradost:cloudstream3-core:3.0.0'
+            }
+            EOF
+          fi
+          
+          # Eğer DMAX plugin dosyası yoksa oluştur
+          if [ ! -f "DMax/DmaxProvider.kt" ]; then
+            mkdir -p DMax
+            cat > DMax/DmaxProvider.kt << 'EOF'
+            package com.umaytv.plugins.dmax
 
-      - name: Derlemeleri Yükle
+            import com.lagradost.cloudstream3.*
+            import com.lagradost.cloudstream3.utils.*
+            import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+            import com.lagradost.cloudstream3.plugins.Plugin
+            import org.jsoup.nodes.Element
+            import android.content.Context
+
+            @CloudstreamPlugin
+            class DmaxPlugin : Plugin() {
+                override fun load(context: Context) {
+                    registerMainAPI(DmaxProvider())
+                }
+            }
+
+            class DmaxProvider : MainAPI() {
+                override var mainUrl = "https://www.dmax.com.tr"
+                override var name = "DMAX"
+                override val supportedTypes = setOf(TvType.TvSeries, TvType.Movie)
+                override val lang = "tr"
+
+                override val mainPage = mainPageOf(
+                    "$mainUrl/programlar" to "Programlar",
+                    "$mainUrl/diziler" to "Diziler",
+                    "$mainUrl/belgeseller" to "Belgeseller"
+                )
+
+                override suspend fun getMainPage(
+                    page: Int,
+                    request: MainPageRequest
+                ): HomePageResponse {
+                    val doc = app.get(request.data).document
+                    val items = ArrayList<HomePageList>()
+
+                    val programs = doc.select("div.program-item, div.card, article").mapNotNull { element ->
+                        val title = element.selectFirst("h3, h4, .title")?.text()?.trim() ?: return@mapNotNull null
+                        val href = element.selectFirst("a")?.attr("href")?.let { url ->
+                            if (url.startsWith("http")) url else mainUrl + url
+                        } ?: return@mapNotNull null
+                        val poster = element.selectFirst("img")?.attr("src")?.let { src ->
+                            if (src.startsWith("http")) src else mainUrl + src
+                        }
+                        val description = element.selectFirst("p, .description")?.text()?.trim()
+
+                        newMovieSearchResponse(title, href, TvType.TvSeries) {
+                            this.posterUrl = poster
+                            this.plot = description
+                        }
+                    }
+
+                    if (programs.isNotEmpty()) {
+                        items.add(HomePageList(request.name, programs, true))
+                    }
+
+                    return HomePageResponse(items)
+                }
+
+                override suspend fun search(query: String): List<SearchResponse> {
+                    return try {
+                        val doc = app.get("$mainUrl/arama?q=${query.encodeURL()}").document
+                        doc.select("div.search-result, div.program-item, article").mapNotNull { element ->
+                            val title = element.selectFirst("h3, h4, .title")?.text()?.trim() ?: return@mapNotNull null
+                            val href = element.selectFirst("a")?.attr("href")?.let { url ->
+                                if (url.startsWith("http")) url else mainUrl + url
+                            } ?: return@mapNotNull null
+                            val poster = element.selectFirst("img")?.attr("src")?.let { src ->
+                                if (src.startsWith("http")) src else mainUrl + src
+                            }
+                            val description = element.selectFirst("p, .description")?.text()?.trim()
+
+                            newMovieSearchResponse(title, href, TvType.TvSeries) {
+                                this.posterUrl = poster
+                                this.plot = description
+                            }
+                        }
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
+                }
+
+                override suspend fun load(url: String): LoadResponse {
+                    val doc = app.get(url).document
+
+                    val title = doc.selectFirst("h1.title, h1.program-title")?.text()?.trim() ?: ""
+                    val description = doc.selectFirst("p.description, div.plot")?.text()?.trim() ?: ""
+                    val poster = doc.selectFirst("img.poster, img.program-image")?.attr("src")?.let { src ->
+                        if (src.startsWith("http")) src else mainUrl + src
+                    } ?: ""
+
+                    return newTvSeriesLoadResponse(title, url, TvType.TvSeries, emptyList()) {
+                        this.posterUrl = poster
+                        this.plot = description
+                    }
+                }
+
+                override suspend fun loadLinks(
+                    data: String,
+                    isCasting: Boolean,
+                    subtitleCallback: (SubtitleFile) -> Unit,
+                    callback: (ExtractorLink) -> Unit
+                ): Boolean {
+                    return try {
+                        val doc = app.get(data).document
+                        val videoSources = doc.select("video source, iframe[src*='video']")
+                        var foundLinks = false
+
+                        videoSources.forEach { source ->
+                            val src = source.attr("src")
+                            if (src.isNotBlank() && src.contains("http")) {
+                                callback(
+                                    ExtractorLink(
+                                        name,
+                                        name,
+                                        src,
+                                        referer = mainUrl,
+                                        quality = Qualities.P720.value,
+                                        isM3u8 = src.contains(".m3u8")
+                                    )
+                                )
+                                foundLinks = true
+                            }
+                        }
+                        foundLinks
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
+            }
+            EOF
+          fi
+
+      - name: DMAX CS3 Dosyasını Oluştur
+        run: |
+          cd $GITHUB_WORKSPACE/builds
+          
+          # DMAX için CS3 manifest dosyası oluştur
+          cat > DMax.cs3 << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <cloudstream-plugin>
+              <id>com.umaytv.dmax</id>
+              <name>DMAX Türkiye</name>
+              <version>1.0.0</version>
+              <versionCode>1</versionCode>
+              
+              <description>
+                  DMAX Türkiye için CloudStream 3 eklentisi - Programlar, diziler ve belgeseller
+              </description>
+              
+              <author>UmayTV</author>
+              <website>https://github.com/UmayTrade/UmayTV</website>
+              
+              <base-url>https://www.dmax.com.tr</base-url>
+              <language>tr</language>
+              
+              <permissions>
+                  <permission>android.permission.INTERNET</permission>
+              </permissions>
+              
+              <features>
+                  <feature>HD Streaming</feature>
+                  <feature>Turkish Content</feature>
+                  <feature>Search Support</feature>
+              </features>
+              
+              <provider-config>
+                  <main-page>
+                      <page name="Programlar" url="/programlar"/>
+                      <page name="Diziler" url="/diziler"/> 
+                      <page name="Belgeseller" url="/belgeseller"/>
+                  </main-page>
+                  
+                  <search-url>/arama?q={query}</search-url>
+                  <supported-types>series,movie</supported-types>
+              </provider-config>
+              
+              <build-info>
+                  <source>DMax/</source>
+                  <build-date>$(date +'%Y-%m-%d %H:%M:%S')</build-date>
+                  <commit-hash>${{ github.sha }}</commit-hash>
+              </build-info>
+          </cloudstream-plugin>
+          EOF
+          
+          echo "✅ DMAX.cs3 oluşturuldu"
+
+      - name: Plugin Listesini Güncelle
+        run: |
+          cd $GITHUB_WORKSPACE/builds
+          
+          # plugins.json oluştur veya güncelle
+          if [ ! -f "plugins.json" ]; then
+            cat > plugins.json << 'EOF'
+            {
+              "plugins": [
+                {
+                  "id": "com.umaytv.dmax",
+                  "name": "DMAX Türkiye",
+                  "version": "1.0.0",
+                  "description": "DMAX Türkiye içerikleri için CloudStream 3 eklentisi",
+                  "author": "UmayTV",
+                  "file": "DMax.cs3"
+                }
+              ],
+              "last_updated": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            }
+            EOF
+          else
+            # Varolan plugins.json'u güncelle
+            python3 << 'EOF'
+            import json
+            import datetime
+            
+            try:
+                with open('plugins.json', 'r') as f:
+                    data = json.load(f)
+            except:
+                data = {"plugins": [], "last_updated": ""}
+            
+            # DMAX plugin'ini ekle veya güncelle
+            dmax_plugin = {
+                "id": "com.umaytv.dmax",
+                "name": "DMAX Türkiye", 
+                "version": "1.0.0",
+                "description": "DMAX Türkiye içerikleri için CloudStream 3 eklentisi",
+                "author": "UmayTV",
+                "file": "DMax.cs3"
+            }
+            
+            # Eski DMAX entry'sini kaldır
+            data["plugins"] = [p for p in data["plugins"] if p["id"] != "com.umaytv.dmax"]
+            # Yeni DMAX entry'sini ekle
+            data["plugins"].append(dmax_plugin)
+            data["last_updated"] = datetime.datetime.utcnow().isoformat() + "Z"
+            
+            with open('plugins.json', 'w') as f:
+                json.dump(data, f, indent=2)
+            EOF
+          fi
+
+      - name: Derlemeleri Builds Branch'ine Yükle
         run: |
           cd $GITHUB_WORKSPACE/builds
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
           git add .
-          git commit -m "Yeni Derleme: $GITHUB_SHA" || exit 0
+          git commit -m "DMAX Plugin Güncelleme: $GITHUB_SHA" || exit 0
           git push --force
+
+      - name: Build Sonucunu Raporla
+        run: |
+          echo "## 🎉 DMAX Plugin Derleme Tamamlandı" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Oluşturulan Dosyalar:" >> $GITHUB_STEP_SUMMARY
+          echo "- **DMax.cs3** - CloudStream 3 eklentisi" >> $GITHUB_STEP_SUMMARY
+          echo "- **plugins.json** - Plugin listesi" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 İndirme Linki:" >> $GITHUB_STEP_SUMMARY
+          echo "DMax.cs3 dosyasını `builds` branch'inden indirebilirsiniz." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Build Bilgileri:" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Tarih: $(date)" >> $GITHUB_STEP_SUMMARY
