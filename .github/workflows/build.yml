@@ -1,309 +1,61 @@
-name: Build DMAX CloudStream3 Plugin
+name: CloudStream Derleyici
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.yml"
+      - "**/*.jpg"
+      - "**/*.png"
+      - "**/*.py"
 
 jobs:
-  analyze-and-build:
+  CloudStreamDerleyici:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: "'src' Depo Kontrolü"
+        uses: actions/checkout@v4.2.2
+        with:
+          path: "src"
 
-    - name: Download and analyze reference CS3
-      run: |
-        echo "📥 Referans CS3 dosyasını indiriyorum..."
-        curl -s -L -o reference_dmax.cs3 "https://raw.githubusercontent.com/nikyokki/nik-cloudstream/builds/DMax.cs3"
-        
-        echo "🔍 CS3 Dosya Analizi:"
-        file reference_dmax.cs3
-        echo "Dosya Boyutu: $(stat -c%s reference_dmax.cs3) bytes"
-        echo "İlk 500 karakter:"
-        head -c 500 reference_dmax.cs3
-        echo ""
-        echo "Dosya Formatı Kontrolü:"
-        if grep -q "<?xml" reference_dmax.cs3; then
-          echo "✅ XML formatında"
-        elif grep -q "package" reference_dmax.cs3; then
-          echo "✅ Kotlin/Java formatında" 
-        else
-          echo "❓ Bilinmeyen format"
-        fi
+      - name: "'build' Depo Kontrolü"
+        uses: actions/checkout@v4.2.2
+        with:
+          ref: "builds"
+          path: "builds"
 
-    - name: Check file format and create plugin
-      run: |
-        echo "🎯 Dosya formatı kontrol ediliyor..."
-        
-        # Önce formatı bir değişkene kaydet
-        if grep -q "package" reference_dmax.cs3; then
-          echo "Kotlin formatı tespit edildi"
-          PLUGIN_FORMAT="kotlin"
-        else
-          echo "XML formatı tespit edildi (veya diğer)"
-          PLUGIN_FORMAT="xml"
-        fi
-        
-        echo "Seçilen format: $PLUGIN_FORMAT"
+      - name: Eski Derlemeleri Temizle
+        run: find $GITHUB_WORKSPACE/builds -name '*.cs3' -delete
 
-    - name: Create Kotlin plugin
-      if: ${{ success() }}  # Önceki step başarılı olduysa
-      run: |
-        if grep -q "package" reference_dmax.cs3; then
-          echo "🛠️ Kotlin tabanlı plugin oluşturuluyor..."
-          mkdir -p plugins/dmax
-          
-          cat > plugins/dmax/DmaxProvider.kt << 'EOF'
-package com.umaytv.plugins.dmax
+      - name: JDK 17 Ayarla
+        uses: actions/setup-java@v4.6.0
+        with:
+          distribution: adopt
+          java-version: 17
 
-import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.*
-import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.plugins.Plugin
-import org.jsoup.nodes.Element
-import android.content.Context
+      - name: Android SDK Ayarla
+        uses: android-actions/setup-android@v3.2.2
 
-@CloudstreamPlugin
-class DmaxPlugin : Plugin() {
-    override fun load(context: Context) {
-        registerMainAPI(DmaxProvider())
-    }
-}
+      - name: Eklentileri Derle
+        run: |
+          cd $GITHUB_WORKSPACE/src
+          chmod +x gradlew
+          ./gradlew make makePluginsJson
+          cp **/build/*.cs3 $GITHUB_WORKSPACE/builds
+          cp build/plugins.json $GITHUB_WORKSPACE/builds
 
-class DmaxProvider : MainAPI() {
-    override var mainUrl = "https://www.dmax.com.tr"
-    override var name = "DMAX"
-    override val supportedTypes = setOf(TvType.TvSeries, TvType.Movie)
-    override val lang = "tr"
-
-    override val mainPage = mainPageOf(
-        "$mainUrl/programlar" to "Programlar",
-        "$mainUrl/kesfet" to "Keşfet",
-        "$mainUrl/diziler" to "Diziler",
-        "$mainUrl/belgeseller" to "Belgeseller"
-    )
-
-    override suspend fun getMainPage(
-        page: Int,
-        request: MainPageRequest
-    ): HomePageResponse {
-        val doc = app.get(request.data).document
-        val items = ArrayList<HomePageList>()
-
-        val programs = doc.select("div.program-item, div.card, article").mapNotNull { element ->
-            val title = element.selectFirst("h3, h4, .title")?.text()?.trim() ?: return@mapNotNull null
-            val href = element.selectFirst("a")?.attr("href")?.let { url ->
-                if (url.startsWith("http")) url else mainUrl + url
-            } ?: return@mapNotNull null
-            val poster = element.selectFirst("img")?.attr("src")?.let { src ->
-                if (src.startsWith("http")) src else mainUrl + src
-            }
-            val description = element.selectFirst("p, .description")?.text()?.trim()
-
-            newMovieSearchResponse(title, href, TvType.TvSeries) {
-                this.posterUrl = poster
-                this.plot = description
-            }
-        }
-
-        if (programs.isNotEmpty()) {
-            items.add(HomePageList(request.name, programs, true))
-        }
-
-        return HomePageResponse(items)
-    }
-
-    override suspend fun search(query: String): List<SearchResponse> {
-        return try {
-            val doc = app.get("$mainUrl/arama?q=${query.encodeURL()}").document
-            doc.select("div.search-result, div.program-item, article").mapNotNull { element ->
-                val title = element.selectFirst("h3, h4, .title")?.text()?.trim() ?: return@mapNotNull null
-                val href = element.selectFirst("a")?.attr("href")?.let { url ->
-                    if (url.startsWith("http")) url else mainUrl + url
-                } ?: return@mapNotNull null
-                val poster = element.selectFirst("img")?.attr("src")?.let { src ->
-                    if (src.startsWith("http")) src else mainUrl + src
-                }
-                val description = element.selectFirst("p, .description")?.text()?.trim()
-
-                newMovieSearchResponse(title, href, TvType.TvSeries) {
-                    this.posterUrl = poster
-                    this.plot = description
-                }
-            }
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    override suspend fun load(url: String): LoadResponse {
-        val doc = app.get(url).document
-
-        val title = doc.selectFirst("h1.title, h1.program-title")?.text()?.trim() ?: ""
-        val description = doc.selectFirst("p.description, div.plot")?.text()?.trim() ?: ""
-        val poster = doc.selectFirst("img.poster, img.program-image")?.attr("src")?.let { src ->
-            if (src.startsWith("http")) src else mainUrl + src
-        } ?: ""
-
-        val episodes = doc.select("div.episode-item, li.episode").mapNotNull { episode ->
-            val epTitle = episode.selectFirst("h3, .episode-title")?.text()?.trim() ?: return@mapNotNull null
-            val epUrl = episode.selectFirst("a")?.attr("href")?.let { href ->
-                if (href.startsWith("http")) href else mainUrl + href
-            } ?: return@mapNotNull null
-            val epPoster = episode.selectFirst("img")?.attr("src")?.let { src ->
-                if (src.startsWith("http")) src else mainUrl + src
-            }
-            val epDesc = episode.selectFirst("p, .episode-desc")?.text()?.trim()
-
-            Episode(epUrl, epTitle, description = epDesc, posterUrl = epPoster)
-        }
-
-        return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
-            this.posterUrl = poster
-            this.plot = description
-            this.year = null
-        }
-    }
-
-    override suspend fun loadLinks(
-        data: String,
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        return try {
-            val doc = app.get(data).document
-            
-            val videoSources = doc.select("video source, iframe[src*='video']")
-            var foundLinks = false
-
-            videoSources.forEach { source ->
-                val src = source.attr("src")
-                if (src.isNotBlank() && src.contains("http")) {
-                    callback(
-                        ExtractorLink(
-                            name,
-                            name,
-                            src,
-                            referer = mainUrl,
-                            quality = Qualities.P720.value,
-                            isM3u8 = src.contains(".m3u8")
-                        )
-                    )
-                    foundLinks = true
-                }
-            }
-
-            foundLinks
-        } catch (e: Exception) {
-            false
-        }
-    }
-}
-EOF
-        else
-          echo "⏩ Kotlin formatı bulunamadı, XML plugin oluşturulacak"
-        fi
-
-    - name: Create XML plugin
-      if: ${{ success() }}
-      run: |
-        if ! grep -q "package" reference_dmax.cs3; then
-          echo "🛠️ XML tabanlı plugin oluşturuluyor..."
-          mkdir -p plugins/dmax
-          
-          cat > plugins/dmax/dmax.cs3 << 'EOF'
-<?xml version="1.0" encoding="utf-8"?>
-<cloudstream-plugin>
-    <id>com.umaytv.dmax</id>
-    <name>DMAX Türkiye</name>
-    <version>1.2.0</version>
-    <versionCode>20</versionCode>
-    
-    <description>DMAX Türkiye için CloudStream 3 eklentisi</description>
-    
-    <author>UmayTV</author>
-    <website>https://github.com/UmayTrade/UmayTV</website>
-    
-    <base-url>https://www.dmax.com.tr</base-url>
-    <language>tr</language>
-    
-    <permissions>
-        <permission>android.permission.INTERNET</permission>
-    </permissions>
-    
-    <features>
-        <feature>HD Streaming</feature>
-        <feature>Turkish Content</feature>
-        <feature>Search Support</feature>
-    </features>
-    
-    <provider-config>
-        <main-page>
-            <page name="Programlar" url="/programlar"/>
-            <page name="Diziler" url="/diziler"/> 
-            <page name="Belgeseller" url="/belgeseller"/>
-        </main-page>
-        
-        <search-url>/arama?q={query}</search-url>
-        <supported-types>series,movie</supported-types>
-    </provider-config>
-</cloudstream-plugin>
-EOF
-        else
-          echo "⏩ XML plugin gerekli değil, Kotlin kullanılıyor"
-        fi
-
-    - name: Create plugin metadata
-      run: |
-        echo "📄 Plugin metadata oluşturuluyor..."
-        mkdir -p plugins/dmax
-        cat > plugins/dmax/README.md << 'EOF'
-# DMAX Türkiye - CloudStream 3 Plugin
-
-## Özellikler
-- DMAX Türkiye içerikleri
-- Programlar, diziler, belgeseller
-- Türkçe dil desteği
-
-## Kurulum
-1. CloudStream 3 uygulamasını açın
-2. Ayarlar → Eklentiler → Plugin Yükle
-3. DMAX plugin dosyasını seçin
-4. Eklentiyi etkinleştirin
-EOF
-
-    - name: Validate and package plugin
-      run: |
-        echo "🔧 Plugin doğrulama ve paketleme..."
-        echo "📁 Oluşturulan dosyalar:"
-        find plugins/dmax -type f -name "*.*" | while read file; do
-          size=$(wc -c < "$file")
-          lines=$(wc -l < "$file" 2>/dev/null || echo "0")
-          echo "  ✅ $file ($size bytes, $lines lines)"
-        done
-
-    - name: Upload DMAX plugin artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: dmax-cloudstream3-optimized
-        path: |
-          plugins/
-          reference_dmax.cs3
-        retention-days: 30
-
-    - name: Create build summary
-      run: |
-        echo "## DMAX CloudStream 3 Plugin - Build Complete" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📦 Oluşturulan Plugin" >> $GITHUB_STEP_SUMMARY
-        echo "- DMAX Türkiye özelleştirmeli" >> $GITHUB_STEP_SUMMARY
-        echo "- Türkçe dil desteği" >> $GITHUB_STEP_SUMMARY
-        echo "- Çoklu içerik kategorileri" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📥 İndirme" >> $GITHUB_STEP_SUMMARY
-        echo "Artifacts bölümünden plugin dosyalarını indirebilirsiniz." >> $GITHUB_STEP_SUMMARY
+      - name: Derlemeleri Yükle
+        run: |
+          cd $GITHUB_WORKSPACE/builds
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add .
+          git commit -m "Yeni Derleme: $GITHUB_SHA" || exit 0
+          git push --force
