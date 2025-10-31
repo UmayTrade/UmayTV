@@ -34,12 +34,6 @@ jobs:
         else
           echo "❓ Bilinmeyen format"
         fi
-        
-        # Dosya içeriğini daha detaylı incele
-        echo "📊 Dosya İstatistikleri:"
-        wc -l reference_dmax.cs3
-        echo "Son 200 karakter:"
-        tail -c 200 reference_dmax.cs3
 
     - name: Create optimized DMAX plugin based on analysis
       run: |
@@ -52,158 +46,157 @@ jobs:
           
           # Kotlin plugin dosyası
           cat > plugins/dmax/DmaxProvider.kt << 'EOF'
-          package com.umaytv.plugins.dmax
+package com.umaytv.plugins.dmax
 
-          import com.lagradost.cloudstream3.*
-          import com.lagradost.cloudstream3.utils.*
-          import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-          import com.lagradost.cloudstream3.plugins.Plugin
-          import com.lagradost.cloudstream3.syncers.SyncPair
-          import org.jsoup.nodes.Element
-          import android.content.Context
+import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+import com.lagradost.cloudstream3.plugins.Plugin
+import org.jsoup.nodes.Element
+import android.content.Context
 
-          @CloudstreamPlugin
-          class DmaxPlugin : Plugin() {
-              override fun load(context: Context) {
-                  registerMainAPI(DmaxProvider())
-              }
-          }
+@CloudstreamPlugin
+class DmaxPlugin : Plugin() {
+    override fun load(context: Context) {
+        registerMainAPI(DmaxProvider())
+    }
+}
 
-          class DmaxProvider : MainAPI() {
-              override var mainUrl = "https://www.dmax.com.tr"
-              override var name = "DMAX"
-              override val supportedTypes = setOf(TvType.TvSeries, TvType.Movie)
-              override val lang = "tr"
+class DmaxProvider : MainAPI() {
+    override var mainUrl = "https://www.dmax.com.tr"
+    override var name = "DMAX"
+    override val supportedTypes = setOf(TvType.TvSeries, TvType.Movie)
+    override val lang = "tr"
 
-              // Main page sections
-              override val mainPage = mainPageOf(
-                  "$mainUrl/programlar" to "Programlar",
-                  "$mainUrl/kesfet" to "Keşfet",
-                  "$mainUrl/diziler" to "Diziler",
-                  "$mainUrl/belgeseller" to "Belgeseller"
-              )
+    // Main page sections
+    override val mainPage = mainPageOf(
+        "$mainUrl/programlar" to "Programlar",
+        "$mainUrl/kesfet" to "Keşfet",
+        "$mainUrl/diziler" to "Diziler",
+        "$mainUrl/belgeseller" to "Belgeseller"
+    )
 
-              override suspend fun getMainPage(
-                  page: Int,
-                  request: MainPageRequest
-              ): HomePageResponse {
-                  val doc = app.get(request.data).document
-                  val items = ArrayList<HomePageList>()
+    override suspend fun getMainPage(
+        page: Int,
+        request: MainPageRequest
+    ): HomePageResponse {
+        val doc = app.get(request.data).document
+        val items = ArrayList<HomePageList>()
 
-                  // Program listesi
-                  val programs = doc.select("div.program-item, div.card, article").mapNotNull { element ->
-                      val title = element.selectFirst("h3, h4, .title")?.text()?.trim() ?: return@mapNotNull null
-                      val href = element.selectFirst("a")?.attr("href")?.let { url ->
-                          if (url.startsWith("http")) url else mainUrl + url
-                      } ?: return@mapNotNull null
-                      val poster = element.selectFirst("img")?.attr("src")?.let { src ->
-                          if (src.startsWith("http")) src else mainUrl + src
-                      }
-                      val description = element.selectFirst("p, .description")?.text()?.trim()
+        // Program listesi
+        val programs = doc.select("div.program-item, div.card, article").mapNotNull { element ->
+            val title = element.selectFirst("h3, h4, .title")?.text()?.trim() ?: return@mapNotNull null
+            val href = element.selectFirst("a")?.attr("href")?.let { url ->
+                if (url.startsWith("http")) url else mainUrl + url
+            } ?: return@mapNotNull null
+            val poster = element.selectFirst("img")?.attr("src")?.let { src ->
+                if (src.startsWith("http")) src else mainUrl + src
+            }
+            val description = element.selectFirst("p, .description")?.text()?.trim()
 
-                      newMovieSearchResponse(title, href, TvType.TvSeries) {
-                          this.posterUrl = poster
-                          this.plot = description
-                      }
-                  }
+            newMovieSearchResponse(title, href, TvType.TvSeries) {
+                this.posterUrl = poster
+                this.plot = description
+            }
+        }
 
-                  if (programs.isNotEmpty()) {
-                      items.add(HomePageList(request.name, programs, true))
-                  }
+        if (programs.isNotEmpty()) {
+            items.add(HomePageList(request.name, programs, true))
+        }
 
-                  return HomePageResponse(items)
-              }
+        return HomePageResponse(items)
+    }
 
-              override suspend fun search(query: String): List<SearchResponse> {
-                  return try {
-                      val doc = app.get("$mainUrl/arama?q=${query.encodeURL()}").document
-                      doc.select("div.search-result, div.program-item, article").mapNotNull { element ->
-                          val title = element.selectFirst("h3, h4, .title")?.text()?.trim() ?: return@mapNotNull null
-                          val href = element.selectFirst("a")?.attr("href")?.let { url ->
-                              if (url.startsWith("http")) url else mainUrl + url
-                          } ?: return@mapNotNull null
-                          val poster = element.selectFirst("img")?.attr("src")?.let { src ->
-                              if (src.startsWith("http")) src else mainUrl + src
-                          }
-                          val description = element.selectFirst("p, .description")?.text()?.trim()
+    override suspend fun search(query: String): List<SearchResponse> {
+        return try {
+            val doc = app.get("$mainUrl/arama?q=${query.encodeURL()}").document
+            doc.select("div.search-result, div.program-item, article").mapNotNull { element ->
+                val title = element.selectFirst("h3, h4, .title")?.text()?.trim() ?: return@mapNotNull null
+                val href = element.selectFirst("a")?.attr("href")?.let { url ->
+                    if (url.startsWith("http")) url else mainUrl + url
+                } ?: return@mapNotNull null
+                val poster = element.selectFirst("img")?.attr("src")?.let { src ->
+                    if (src.startsWith("http")) src else mainUrl + src
+                }
+                val description = element.selectFirst("p, .description")?.text()?.trim()
 
-                          newMovieSearchResponse(title, href, TvType.TvSeries) {
-                              this.posterUrl = poster
-                              this.plot = description
-                          }
-                      }
-                  } catch (e: Exception) {
-                      emptyList()
-                  }
-              }
+                newMovieSearchResponse(title, href, TvType.TvSeries) {
+                    this.posterUrl = poster
+                    this.plot = description
+                }
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 
-              override suspend fun load(url: String): LoadResponse {
-                  val doc = app.get(url).document
+    override suspend fun load(url: String): LoadResponse {
+        val doc = app.get(url).document
 
-                  val title = doc.selectFirst("h1.title, h1.program-title")?.text()?.trim() ?: ""
-                  val description = doc.selectFirst("p.description, div.plot")?.text()?.trim() ?: ""
-                  val poster = doc.selectFirst("img.poster, img.program-image")?.attr("src")?.let { src ->
-                      if (src.startsWith("http")) src else mainUrl + src
-                  } ?: ""
+        val title = doc.selectFirst("h1.title, h1.program-title")?.text()?.trim() ?: ""
+        val description = doc.selectFirst("p.description, div.plot")?.text()?.trim() ?: ""
+        val poster = doc.selectFirst("img.poster, img.program-image")?.attr("src")?.let { src ->
+            if (src.startsWith("http")) src else mainUrl + src
+        } ?: ""
 
-                  // Bölümleri bul
-                  val episodes = doc.select("div.episode-item, li.episode").mapNotNull { episode ->
-                      val epTitle = episode.selectFirst("h3, .episode-title")?.text()?.trim() ?: return@mapNotNull null
-                      val epUrl = episode.selectFirst("a")?.attr("href")?.let { href ->
-                          if (href.startsWith("http")) href else mainUrl + href
-                      } ?: return@mapNotNull null
-                      val epPoster = episode.selectFirst("img")?.attr("src")?.let { src ->
-                          if (src.startsWith("http")) src else mainUrl + src
-                      }
-                      val epDesc = episode.selectFirst("p, .episode-desc")?.text()?.trim()
+        // Bölümleri bul
+        val episodes = doc.select("div.episode-item, li.episode").mapNotNull { episode ->
+            val epTitle = episode.selectFirst("h3, .episode-title")?.text()?.trim() ?: return@mapNotNull null
+            val epUrl = episode.selectFirst("a")?.attr("href")?.let { href ->
+                if (href.startsWith("http")) href else mainUrl + href
+            } ?: return@mapNotNull null
+            val epPoster = episode.selectFirst("img")?.attr("src")?.let { src ->
+                if (src.startsWith("http")) src else mainUrl + src
+            }
+            val epDesc = episode.selectFirst("p, .episode-desc")?.text()?.trim()
 
-                      Episode(epUrl, epTitle, description = epDesc, posterUrl = epPoster)
-                  }
+            Episode(epUrl, epTitle, description = epDesc, posterUrl = epPoster)
+        }
 
-                  return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
-                      this.posterUrl = poster
-                      this.plot = description
-                      this.year = null
-                  }
-              }
+        return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+            this.posterUrl = poster
+            this.plot = description
+            this.year = null
+        }
+    }
 
-              override suspend fun loadLinks(
-                  data: String,
-                  isCasting: Boolean,
-                  subtitleCallback: (SubtitleFile) -> Unit,
-                  callback: (ExtractorLink) -> Unit
-              ): Boolean {
-                  return try {
-                      val doc = app.get(data).document
-                      
-                      // Video URL'lerini bul
-                      val videoSources = doc.select("video source, iframe[src*='video']")
-                      var foundLinks = false
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        return try {
+            val doc = app.get(data).document
+            
+            // Video URL'lerini bul
+            val videoSources = doc.select("video source, iframe[src*='video']")
+            var foundLinks = false
 
-                      videoSources.forEach { source ->
-                          val src = source.attr("src")
-                          if (src.isNotBlank() && src.contains("http")) {
-                              callback(
-                                  ExtractorLink(
-                                      name,
-                                      name,
-                                      src,
-                                      referer = mainUrl,
-                                      quality = Qualities.P720.value,
-                                      isM3u8 = src.contains(".m3u8")
-                                  )
-                              )
-                              foundLinks = true
-                          }
-                      }
+            videoSources.forEach { source ->
+                val src = source.attr("src")
+                if (src.isNotBlank() && src.contains("http")) {
+                    callback(
+                        ExtractorLink(
+                            name,
+                            name,
+                            src,
+                            referer = mainUrl,
+                            quality = Qualities.P720.value,
+                            isM3u8 = src.contains(".m3u8")
+                        )
+                    )
+                    foundLinks = true
+                }
+            }
 
-                      foundLinks
-                  } catch (e: Exception) {
-                      false
-                  }
-              }
-          }
-          EOF
+            foundLinks
+        } catch (e: Exception) {
+            false
+        }
+    }
+}
+EOF
 
         else
           echo "XML tabanlı plugin oluşturuluyor..."
@@ -211,108 +204,76 @@ jobs:
           
           # XML manifest dosyası
           cat > plugins/dmax/dmax.cs3 << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <cloudstream-plugin>
-              <id>com.umaytv.dmax</id>
-              <name>DMAX Türkiye</name>
-              <version>1.2.0</version>
-              <versionCode>20</versionCode>
-              
-              <description>
-                  DMAX Türkiye için CloudStream 3 eklentisi - Programlar, diziler ve belgeseller
-              </description>
-              
-              <author>UmayTV</author>
-              <website>https://github.com/UmayTrade/UmayTV</website>
-              
-              <base-url>https://www.dmax.com.tr</base-url>
-              <language>tr</language>
-              
-              <permissions>
-                  <permission>android.permission.INTERNET</permission>
-              </permissions>
-              
-              <features>
-                  <feature>HD Streaming</feature>
-                  <feature>Turkish Content</feature>
-                  <feature>Search Support</feature>
-                  <feature>Episode Tracking</feature>
-              </features>
-              
-              <provider-config>
-                  <main-page>
-                      <page name="Programlar" url="/programlar"/>
-                      <page name="Diziler" url="/diziler"/> 
-                      <page name="Belgeseller" url="/belgeseller"/>
-                      <page name="Keşfet" url="/kesfet"/>
-                  </main-page>
-                  
-                  <search-url>/arama?q={query}</search-url>
-                  <supported-types>series,movie</supported-types>
-              </provider-config>
-              
-              <build-info>
-                  <based-on>nikyokki/nik-cloudstream</based-on>
-                  <optimized-for>dmax.com.tr</optimized-for>
-                  <build-date>$(date +'%Y-%m-%d')</build-date>
-              </build-info>
-          </cloudstream-plugin>
-          EOF
+<?xml version="1.0" encoding="utf-8"?>
+<cloudstream-plugin>
+    <id>com.umaytv.dmax</id>
+    <name>DMAX Türkiye</name>
+    <version>1.2.0</version>
+    <versionCode>20</versionCode>
+    
+    <description>
+        DMAX Türkiye için CloudStream 3 eklentisi - Programlar, diziler ve belgeseller
+    </description>
+    
+    <author>UmayTV</author>
+    <website>https://github.com/UmayTrade/UmayTV</website>
+    
+    <base-url>https://www.dmax.com.tr</base-url>
+    <language>tr</language>
+    
+    <permissions>
+        <permission>android.permission.INTERNET</permission>
+    </permissions>
+    
+    <features>
+        <feature>HD Streaming</feature>
+        <feature>Turkish Content</feature>
+        <feature>Search Support</feature>
+        <feature>Episode Tracking</feature>
+    </features>
+    
+    <provider-config>
+        <main-page>
+            <page name="Programlar" url="/programlar"/>
+            <page name="Diziler" url="/diziler"/> 
+            <page name="Belgeseller" url="/belgeseller"/>
+            <page name="Keşfet" url="/kesfet"/>
+        </main-page>
+        
+        <search-url>/arama?q={query}</search-url>
+        <supported-types>series,movie</supported-types>
+    </provider-config>
+    
+    <build-info>
+        <based-on>nikyokki/nik-cloudstream</based-on>
+        <optimized-for>dmax.com.tr</optimized-for>
+        <build-date>$(date +'%Y-%m-%d')</build-date>
+    </build-info>
+</cloudstream-plugin>
+EOF
         fi
 
-    - name: Create plugin metadata and documentation
+    - name: Create plugin metadata
       run: |
-        # Plugin metadata oluştur
+        # Plugin bilgi dosyası oluştur
         cat > plugins/dmax/README.md << 'EOF'
-        # DMAX Türkiye - CloudStream 3 Plugin
-        
-        ## Özellikler
-        - 🎬 DMAX Türkiye içerikleri
-        - 📺 Programlar, diziler, belgeseller
-        - 🔍 Gelişmiş arama
-        - 🏷️ Türkçe dil desteği
-        - 📱 Responsive tasarım
-        
-        ## Kurulum
-        1. CloudStream 3 uygulamasını açın
-        2. Ayarlar → Eklentiler → Plugin Yükle
-        3. `dmax.cs3` dosyasını seçin
-        4. Eklentiyi etkinleştirin
-        
-        ## Kullanım
-        - Ana sayfada program kategorileri görünecek
-        - Arama kutusundan içerik arayabilirsiniz
-        - Bölümleri izlemek için tıklayın
-        
-        ## Referans
-        Bu plugin, [nikyokki/nik-cloudstream](https://github.com/nikyokki/nik-cloudstream) referans alınarak geliştirilmiştir.
-        EOF
+# DMAX Türkiye - CloudStream 3 Plugin
 
-        # Build konfigürasyonu
-        cat > plugins/dmax/build.gradle << 'EOF'
-        plugins {
-            id 'com.android.library'
-            id 'kotlin-android'
-        }
-        
-        android {
-            compileSdkVersion 33
-            
-            defaultConfig {
-                minSdkVersion 21
-                targetSdkVersion 33
-            }
-            
-            compileOptions {
-                sourceCompatibility JavaVersion.VERSION_1_8
-                targetCompatibility JavaVersion.VERSION_1_8
-            }
-        }
-        
-        dependencies {
-            implementation 'com.lagradost:cloudstream3-core:3.0.0'
-        }
-        EOF
+## Özellikler
+- 🎬 DMAX Türkiye içerikleri
+- 📺 Programlar, diziler, belgeseller
+- 🔍 Gelişmiş arama
+- 🏷️ Türkçe dil desteği
+
+## Kurulum
+1. CloudStream 3 uygulamasını açın
+2. Ayarlar → Eklentiler → Plugin Yükle
+3. DMAX plugin dosyasını seçin
+4. Eklentiyi etkinleştirin
+
+## Referans
+Bu plugin, nikyokki/nik-cloudstream referans alınarak geliştirilmiştir.
+EOF
 
     - name: Validate and package plugin
       run: |
@@ -325,17 +286,6 @@ jobs:
           lines=$(wc -l < "$file" 2>/dev/null || echo "0")
           echo "  ✅ $file ($size bytes, $lines lines)"
         done
-        
-        # CS3 dosyasını kontrol et
-        if [ -f "plugins/dmax/dmax.cs3" ]; then
-          echo "📦 CS3 Manifest:"
-          head -10 plugins/dmax/dmax.cs3
-        fi
-        
-        if [ -f "plugins/dmax/DmaxProvider.kt" ]; then
-          echo "📦 Kotlin Source:"
-          head -5 plugins/dmax/DmaxProvider.kt
-        fi
 
     - name: Upload DMAX plugin artifacts
       uses: actions/upload-artifact@v4
@@ -350,10 +300,6 @@ jobs:
       run: |
         echo "## DMAX CloudStream 3 Plugin - Optimized Build" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🔍 Referans Analizi" >> $GITHUB_STEP_SUMMARY
-        echo "- **Kaynak**: nikyokki/nik-cloudstream DMax.cs3" >> $GITHUB_STEP_SUMMARY  
-        echo "- **Format**: $(file reference_dmax.cs3 | cut -d: -f2)" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📦 Oluşturulan Plugin" >> $GITHUB_STEP_SUMMARY
         echo "- **DMAX Türkiye** özelleştirmeli" >> $GITHUB_STEP_SUMMARY
         echo "- Türkçe dil desteği" >> $GITHUB_STEP_SUMMARY
@@ -361,5 +307,5 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🎯 Özellikler" >> $GITHUB_STEP_SUMMARY
         echo "- Programlar, diziler, belgeseller" >> $GITHUB_STEP_SUMMARY
-        "- HD video desteği" >> $GITHUB_STEP_SUMMARY
-        "- Responsive tasarım" >> $GITHUB_STEP_SUMMARY
+        echo "- HD video desteği" >> $GITHUB_STEP_SUMMARY
+        echo "- Responsive tasarım" >> $GITHUB_STEP_SUMMARY
