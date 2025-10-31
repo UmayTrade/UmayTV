@@ -11,7 +11,7 @@
         "version": 1,
         "internalName": "UmayTv",
         "description": "UmayTv - Türkçe film, dizi ve canlı yayınlar",
-        "url": "https://github.com/UmayTrade/UmayTV/raw/refs/heads/main/dmax.cs3",
+        "url": "https://raw.githubusercontent.com/UmayTrade/UmayTV/refs/heads/main/dmax.cs3",
         "name": "DiziPal"
     }
 ]
